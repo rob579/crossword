@@ -561,3 +561,29 @@ body.editing .cluebar { display: none; }
 .ana-slot.drop { border-style: dotted; width: calc(var(--tile) * .8); opacity: .7; }
 .ana-spare-label.quiet { color: var(--muted); font-weight: 500; }
 .ana-spare.alone { border-top: 0; padding-top: 0; }
+
+/* ---------- full screen / focus mode ---------- */
+.fs-btn svg { display: block; }
+.fs-btn .fs-off, body.focus .fs-btn .fs-on { display: none; }
+body.focus .fs-btn .fs-off { display: block; }
+body.focus[data-view="solver"] .topbar { display: none; }
+body.focus .solver-toolbar { padding-top: max(6px, env(safe-area-inset-top)); }
+
+/* wide touch screens (iPad landscape): keyboard sits under the clue list so the grid gets the full height */
+@media (min-width: 900px) {
+  body.touch .solver {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) min(46vw, 560px);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: "tb tb" "board side" "board kb";
+  }
+  body.touch .solver-toolbar { grid-area: tb; }
+  body.touch .solver-body { display: contents; }
+  body.touch .board-col { grid-area: board; min-height: 0; }
+  body.touch .clue-panel { grid-area: side; min-height: 0; width: auto; }
+  body.touch .keyboard {
+    grid-area: kb; max-width: none; margin: 0; border-radius: 0; width: auto;
+    border-left: 1px solid var(--line); padding-bottom: calc(8px + env(safe-area-inset-bottom));
+  }
+  body.touch .board { padding: 12px; }
+}

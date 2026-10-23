@@ -678,6 +678,8 @@ $('#view-solver').addEventListener('click', e => {
     update();
   } else if (act === 'clues') {
     toggleClueSheet();
+  } else if (act === 'fullscreen') {
+    toggleFullscreen();
   } else if (act === 'anagram') {
     openAnagram();
   } else if (act === 'library') {
@@ -832,6 +834,39 @@ const anagram = createAnagrammer($('#anagram-body'), {
 });
 function openAnagram() { $('#dlg-anagram').showModal(); anagram.open(); }
 $('#btn-anagram-close').addEventListener('click', () => $('#dlg-anagram').close());
+
+// ======================================================================
+// Full screen: hide the app's top bar while solving and, where the browser
+// allows it (iPad, Android, desktop), hide the browser's own bars too.
+// ======================================================================
+const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+const fsSupported = () => !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true;
+function setFocusMode(on) {
+  document.body.classList.toggle('focus', on);
+  for (const b of $$('[data-act="fullscreen"]')) {
+    b.title = on ? 'Exit full screen' : 'Full screen';
+    b.setAttribute('aria-label', b.title);
+  }
+}
+async function toggleFullscreen() {
+  if (document.body.classList.contains('focus')) {
+    setFocusMode(false);
+    if (fsEl()) (document.exitFullscreen || document.webkitExitFullscreen).call(document)?.catch?.(() => {});
+    return;
+  }
+  setFocusMode(true);
+  if (fsSupported() && !isStandalone()) {
+    const el = document.documentElement;
+    try { await (el.requestFullscreen || el.webkitRequestFullscreen).call(el); } catch {}
+  } else if (!isStandalone()) {
+    toast('For true full screen on iPhone: Share → Add to Home Screen, then open Crossword from there', 6000);
+  }
+}
+// leaving browser full screen (swipe, Esc) also leaves focus mode
+for (const ev of ['fullscreenchange', 'webkitfullscreenchange']) {
+  document.addEventListener(ev, () => { if (!fsEl() && fsSupported() && !isStandalone()) setFocusMode(false); });
+}
 
 // ======================================================================
 // Settings / sync

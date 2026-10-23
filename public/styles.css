@@ -350,34 +350,9 @@ dialog.sheet::backdrop { background: rgba(0,0,0,.35); }
 .anagram { display: flex; flex-direction: column; gap: 10px; }
 .ana-label { font-weight: 600; font-size: 13px; }
 .ana-input { font: 600 20px var(--grid-font); letter-spacing: .12em; text-transform: uppercase; }
-.ana-pattern { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
-.ana-pattern-label { font-size: 13px; color: var(--muted); margin-right: 6px; }
-.ana-slot {
-  width: 26px; height: 30px; display: grid; place-items: center;
-  border: 1px solid var(--line); border-radius: 4px; background: var(--paper);
-  font: 600 15px var(--grid-font);
-}
-.ana-slot.known { border-color: var(--muted); }
-.ana-tiles {
-  display: flex; flex-wrap: wrap; gap: 8px; min-height: 72px; align-content: flex-start;
-  padding: 12px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line);
-  touch-action: none; user-select: none; -webkit-user-select: none;
-}
 .ana-empty { color: var(--muted); font-size: 14px; align-self: center; }
-.ana-tile {
-  width: 44px; height: 48px; display: grid; place-items: center;
-  background: #fbf3dc; color: #2a2418;
-  border-radius: 6px; box-shadow: 0 2px 0 #d9c99a, 0 3px 8px rgba(0,0,0,.12);
-  font: 700 24px var(--serif); cursor: grab; touch-action: none;
-  transition: transform .12s ease;
-}
 .ana-tile.selected { outline: 3px solid var(--accent); outline-offset: 2px; transform: translateY(-3px); }
 .ana-tile.placeholder { opacity: .25; }
-.ana-tile.ghost {
-  position: fixed; z-index: 100; pointer-events: none; cursor: grabbing;
-  transform: scale(1.1) rotate(-3deg); box-shadow: 0 10px 24px rgba(0,0,0,.25);
-}
-.ana-tiles.shuffled .ana-tile { animation: pop .3s ease; }
 @keyframes pop { 0% { transform: scale(.8); opacity: .4; } 100% { transform: none; opacity: 1; } }
 .ana-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .ana-hint { margin: 0; font-size: 13px; color: var(--muted); }
@@ -423,8 +398,6 @@ body.editing .cluebar { display: none; }
 @media (max-width: 899.98px) { .edit-bar { margin: 8px 8px 0; } }
 
 /* anagrammer: answer preview + fill */
-.ana-slot.preview { border-color: var(--accent); color: var(--accent); }
-.ana-slot.clash { border-color: var(--wrong); color: var(--wrong); background: color-mix(in srgb, var(--wrong) 12%, var(--paper)); }
 .ana-fill { margin-left: auto; }
 .ana-fill:disabled { opacity: .4; cursor: default; }
 
@@ -446,3 +419,56 @@ body.editing .cluebar { display: none; }
 /* clues with every square filled */
 .clue.done .clue-text, .clue.done .clue-num { opacity: .42; transition: opacity .2s; }
 .clue.done.active .clue-text, .clue.done.active .clue-num { opacity: .7; }
+
+/* anagrammer: answer board */
+.ana-board-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; color: var(--muted); margin-top: 2px; }
+.ana-board-label { font-weight: 600; color: var(--ink); }
+.ana-count.over { color: var(--wrong); font-weight: 600; }
+.ana-board {
+  --tile: 44px;
+  padding: 12px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line);
+  touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  display: flex; flex-direction: column; gap: 12px; min-height: 72px;
+}
+.ana-answer, .ana-free { display: flex; flex-wrap: wrap; column-gap: calc(var(--tile) * .45); row-gap: 10px; align-items: center; }
+.ana-free { column-gap: var(--gap, 5px); }
+.ana-group { display: flex; gap: var(--gap, 5px); align-items: center; flex-wrap: nowrap; }
+.ana-sep { font: 700 calc(var(--tile) * .55) var(--serif); color: var(--muted); margin: 0 1px 0 2px; }
+.ana-empty { color: var(--muted); font-size: 14px; }
+.ana-tile, .ana-slot {
+  width: var(--tile); height: calc(var(--tile) * 1.09); flex: none;
+  display: grid; place-items: center; border-radius: 6px;
+  font: 700 calc(var(--tile) * .55) / 1 var(--serif);
+  position: relative; touch-action: none;
+}
+.ana-tile {
+  background: #fbf3dc; color: #2a2418; cursor: grab;
+  box-shadow: 0 2px 0 #d9c99a, 0 3px 8px rgba(0,0,0,.12);
+  transition: transform .12s ease;
+}
+.ana-slot { border: 2px dashed var(--line); color: var(--muted); cursor: default; }
+.ana-slot.hint { color: color-mix(in srgb, var(--muted) 60%, transparent); }
+.ana-tile.locked {
+  background: var(--word); color: var(--letter); cursor: default;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.ana-tile.locked::after, .ana-tile.unlocked::after {
+  content: "🔒"; position: absolute; top: -6px; right: -6px; font-size: max(10px, calc(var(--tile) * .26)); line-height: 1;
+  filter: saturate(.6);
+}
+.ana-tile.unlocked::after { content: "🔓"; opacity: .7; }
+.ana-tile.clash { box-shadow: 0 0 0 2px var(--wrong), 0 2px 0 #d9c99a; }
+.ana-tile.pressing { animation: press .55s linear forwards; }
+@keyframes press { to { transform: scale(.88); } }
+.ana-tile.nudge { animation: nudge .3s ease; }
+@keyframes nudge { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+.ana-tile.lock-flash { animation: pop .3s ease; }
+.ana-spare { display: flex; flex-wrap: wrap; gap: var(--gap, 5px); align-items: center; padding-top: 10px; border-top: 1px dashed var(--line); }
+.ana-spare-label { font-size: 12px; color: var(--wrong); font-weight: 600; margin-right: 6px; }
+.ana-board.shuffled .ana-tile:not(.locked) { animation: pop .3s ease; }
+.ana-tile.ghost {
+  position: fixed; z-index: 100; pointer-events: none; cursor: grabbing;
+  transform: scale(1.1) rotate(-3deg); box-shadow: 0 10px 24px rgba(0,0,0,.25);
+}
+.ana-board.wrap-words .ana-group { flex-wrap: wrap; row-gap: 8px; }
+@media (max-width: 520px) { dialog.sheet { width: calc(100% - 16px); padding: 14px; } }

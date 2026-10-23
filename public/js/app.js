@@ -720,7 +720,18 @@ const anagram = createAnagrammer($('#anagram-body'), {
     const cells = activeWordCells();
     const clue = String(cl.text || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').trim();
     const enumTxt = cl.enumeration && !hasEnum(clue) ? ` (${cl.enumeration})` : '';
-    return { label: `${cl.number} ${cl.dir === 'across' ? 'Across' : 'Down'}`, clue: clue + enumTxt, letters: cells.map(i => valueAt(i)) };
+    const { model } = cur;
+    // a letter is "fixed" if the crossing answer through that square is completely filled in
+    const fixed = cells.map(i => {
+      if (!valueAt(i)) return false;
+      const own = cl.entryIds.map(id => model.entries[id]).find(e => e?.cells.includes(i));
+      const other = own?.dir === 'down' ? 'across' : 'down';
+      const cross = model.entries[model.cellEntries[i][other]];
+      return !!cross && cross.cells.every(c => valueAt(c));
+    });
+    const en = parseEnumeration(cl);
+    const breaks = en && en.total === cells.length ? en.breaks : [];
+    return { label: `${cl.number} ${cl.dir === 'across' ? 'Across' : 'Down'}`, clue: clue + enumTxt, letters: cells.map(i => valueAt(i)), fixed, breaks };
   },
   onFill(letters) {
     if (!cur) return;

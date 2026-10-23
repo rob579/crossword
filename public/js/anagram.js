@@ -1,5 +1,10 @@
-// Anagrammer: type letters, then rearrange the tiles by dragging,
-// tapping two tiles to swap them, or shuffling.
+// Anagrammer.
+// Letters are loaded by tapping clue words or typing, then arranged on an
+// "answer board" laid out like the answer: one slot per square, split into
+// words/hyphenated parts. Letters already confirmed by a completed crossing
+// answer are locked in place (press and hold to unlock / re-lock).
+
+const LONG_PRESS_MS = 550;
 
 export function createAnagrammer(root, { getPattern, onFill } = {}) {
   root.innerHTML = `
@@ -7,81 +12,199 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
       <div class="ana-clue-text"></div>
       <p class="ana-hint">Tap words to load their letters (tap again to remove).</p>
     </div>
-    <div class="ana-pattern" hidden></div>
     <label class="ana-label" for="ana-input">Letters</label>
     <input id="ana-input" class="ana-input" type="text" autocomplete="off" autocorrect="off"
-      autocapitalize="characters" spellcheck="false" placeholder="Type letters…" maxlength="30">
-    <div class="ana-tiles" aria-live="polite"></div>
+      autocapitalize="characters" spellcheck="false" placeholder="Type letters…" maxlength="40">
+    <div class="ana-board-head"><span class="ana-board-label"></span><span class="ana-count"></span></div>
+    <div class="ana-board" aria-live="polite"></div>
     <div class="ana-actions">
       <button type="button" class="btn" data-act="shuffle">⤮ Shuffle</button>
-      <button type="button" class="btn" data-act="reset">↺ Reset order</button>
+      <button type="button" class="btn" data-act="reset">↺ Reset</button>
       <button type="button" class="btn ghost" data-act="clear">Clear</button>
       <button type="button" class="btn primary ana-fill" data-act="fill" disabled>Fill in answer</button>
     </div>
-    <p class="ana-hint">Drag tiles to move them, or tap two tiles to swap.</p>`;
+    <p class="ana-hint">Drag tiles, or tap two to swap. <span class="ana-lock-hint">🔒 letters come from finished crossing answers – press and hold one to unlock it.</span></p>`;
 
   const input = root.querySelector('.ana-input');
-  const tilesEl = root.querySelector('.ana-tiles');
-  const patternEl = root.querySelector('.ana-pattern');
+  const board = root.querySelector('.ana-board');
+  const boardLabel = root.querySelector('.ana-board-label');
+  const countEl = root.querySelector('.ana-count');
+  const lockHint = root.querySelector('.ana-lock-hint');
   const clueEl = root.querySelector('.ana-clue');
   const clueTextEl = root.querySelector('.ana-clue-text');
+
+  let pattern = null;   // { label, clue, letters[], fixed[], breaks[] } for the current answer
   let lastClueKey = null;
-  let tiles = []; // [{ id, ch }]
+  let locked = new Set(); // slot indices locked in place
+  let tiles = [];         // movable tiles, in the order they fill the free slots: [{ id, ch }]
   let nextId = 1;
-  let selected = null;
-  let pattern = null; // { label, letters } for the current answer, captured when opened
+  let selected = null;    // tile id picked for tap-to-swap
 
-  const lettersOf = s => s.toUpperCase().replace(/[^A-Z]/g, '').split('');
+  const lettersOf = s => String(s).toUpperCase().replace(/[^A-Z]/g, '').split('');
+  const N = () => (pattern ? pattern.letters.length : 0);
+  const freeSlots = () => (pattern ? [...Array(N()).keys()].filter(s => !locked.has(s)) : []);
 
+  // ---------- letters in play ----------
+  // The tiles are the typed letters minus any that are locked on the board,
+  // keeping the current arrangement where possible.
   function setFromInput() {
-    // keep existing arrangement where possible when letters are added/removed
-    const want = lettersOf(input.value);
-    const pool = [...tiles];
+    const need = lettersOf(input.value);
+    for (const s of locked) {
+      const at = need.indexOf(pattern.letters[s]);
+      if (at >= 0) need.splice(at, 1);
+    }
     const kept = [];
-    const need = [...want];
-    for (const t of pool) {
-      const i = need.indexOf(t.ch);
-      if (i >= 0) { kept.push(t); need.splice(i, 1); }
+    for (const t of tiles) {
+      const at = need.indexOf(t.ch);
+      if (at >= 0) { kept.push(t); need.splice(at, 1); }
     }
     for (const ch of need) kept.push({ id: nextId++, ch });
     tiles = kept;
-    selected = null;
+    if (!tiles.some(t => t.id === selected)) selected = null;
     render();
+  }
+
+  function toggleLock(slot) {
+    if (!pattern?.fixed[slot]) return;
+    const ch = pattern.letters[slot];
+    if (locked.has(slot)) {
+      // unlock: the letter becomes a movable tile, placed where it was
+      const before = new Set(tiles.map(t => t.id));
+      locked.delete(slot);
+      setFromInput();
+      const fresh = tiles.findIndex(t => !before.has(t.id) && t.ch === ch);
+      const target = freeSlots().indexOf(slot);
+      if (fresh >= 0 && target >= 0) {
+        const [t] = tiles.splice(fresh, 1);
+        tiles.splice(Math.min(target, tiles.length), 0, t);
+      }
+    } else {
+      // re-lock: drop the tile that was sitting in this slot (if it's the same letter)
+      const k = freeSlots().indexOf(slot);
+      if (tiles[k]?.ch === ch) tiles.push(tiles.splice(k, 1)[0]);
+      locked.add(slot);
+      setFromInput();
+    }
+    navigator.vibrate?.(15);
+    render();
+    board.querySelector(`[data-slot="${slot}"]`)?.classList.add('lock-flash');
+  }
+
+  // ---------- rendering ----------
+  function tileEl(cls, ch, attrs = {}) {
+    const el = document.createElement('div');
+    el.className = cls;
+    el.textContent = ch || '';
+    for (const [k, v] of Object.entries(attrs)) el.dataset[k] = v;
+    return el;
+  }
+
+  function render() {
+    board.innerHTML = '';
+    if (!pattern) {
+      // no answer to aim at: just a row of tiles
+      const row = document.createElement('div');
+      row.className = 'ana-free';
+      tiles.forEach((t, k) => row.appendChild(tileEl('ana-tile' + (selected === t.id ? ' selected' : ''), t.ch, { id: t.id, index: k })));
+      if (!tiles.length) row.innerHTML = '<span class="ana-empty">Your tiles will appear here</span>';
+      board.appendChild(row);
+      sizeTiles([Math.min(Math.max(1, tiles.length), 10)]);
+      updateFill();
+      return;
+    }
+
+    const n = N();
+    const breakAt = new Map(pattern.breaks.map(b => [b.after, b.type]));
+    const groups = [];
+    let group = null, groupLen = 0;
+    const lens = [];
+    const free = freeSlots();
+    for (let s = 0; s < n; s++) {
+      if (!group) { group = document.createElement('div'); group.className = 'ana-group'; groupLen = 0; }
+      const k = free.indexOf(s);
+      const grid = pattern.letters[s];
+      let el;
+      if (locked.has(s)) {
+        el = tileEl('ana-tile locked', grid, { slot: s });
+        el.title = 'From a finished crossing answer – press and hold to unlock';
+      } else if (tiles[k]) {
+        const t = tiles[k];
+        el = tileEl('ana-tile', t.ch, { id: t.id, index: k, slot: s });
+        if (selected === t.id) el.classList.add('selected');
+        if (grid && grid !== t.ch) el.classList.add('clash');
+        if (pattern.fixed[s]) { el.classList.add('unlocked'); el.title = 'Press and hold to lock this letter again'; }
+      } else {
+        el = tileEl('ana-slot', grid, { index: k, slot: s });
+        if (grid) el.classList.add('hint');
+      }
+      group.appendChild(el);
+      groupLen++;
+      const br = breakAt.get(s + 1);
+      if (br || s === n - 1) {
+        if (br === 'hyphen') { const h = document.createElement('span'); h.className = 'ana-sep'; h.textContent = '-'; group.appendChild(h); }
+        groups.push(group); lens.push(groupLen); group = null;
+      }
+    }
+    const ans = document.createElement('div');
+    ans.className = 'ana-answer';
+    groups.forEach(g => ans.appendChild(g));
+    board.appendChild(ans);
+
+    // letters that don't fit in the answer
+    const spare = tiles.slice(free.length);
+    if (spare.length) {
+      const wrap = document.createElement('div');
+      wrap.className = 'ana-spare';
+      wrap.innerHTML = `<span class="ana-spare-label">${spare.length} extra</span>`;
+      spare.forEach((t, j) => {
+        const el = tileEl('ana-tile spare', t.ch, { id: t.id, index: free.length + j });
+        if (selected === t.id) el.classList.add('selected');
+        wrap.appendChild(el);
+      });
+      board.appendChild(wrap);
+    }
+
+    lockHint.hidden = !pattern.fixed.some(Boolean);
+    sizeTiles(lens);
+    updateFill();
+  }
+
+  // Size tiles so the longest word fits on one line (long words get smaller tiles).
+  let lastLens = [1];
+  function sizeTiles(lens) {
+    lastLens = lens;
+    const w = board.clientWidth - 24; // board padding
+    if (w <= 0) return;
+    const longest = Math.max(...lens, 1);
+    // tile size plus a gap of ~12% of it must fit the longest word on one line
+    const fit = Math.floor((w - 2) / (longest + (longest - 1) * 0.12));
+    // shrink long words a little, but not below a comfortable size for dragging;
+    // past that, a very long word is allowed to wrap onto a second line
+    const MIN = 28;
+    const size = Math.max(MIN, Math.min(46, fit));
+    board.classList.toggle('wrap-words', fit < MIN);
+    board.style.setProperty('--tile', `${size}px`);
+    board.style.setProperty('--gap', `${Math.max(2, Math.round(size * 0.12))}px`);
+  }
+  new ResizeObserver(() => sizeTiles(lastLens)).observe(board);
+
+  function answerLetters() {
+    const free = freeSlots();
+    if (!pattern || tiles.length !== free.length) return null;
+    return pattern.letters.map((ch, s) => (locked.has(s) ? ch : tiles[free.indexOf(s)].ch));
   }
 
   function updateFill() {
     const btn = root.querySelector('.ana-fill');
-    const need = pattern?.letters.length || 0;
     btn.hidden = !pattern;
-    if (!pattern) return;
-    btn.disabled = !need || tiles.length !== need;
-    btn.title = !need ? '' : tiles.length === need ? `Put ${tiles.map(t => t.ch).join('')} into ${pattern.label}` : `Needs exactly ${need} letters (you have ${tiles.length})`;
-    // preview the arrangement in the answer pattern; flag clashes with letters already in the grid
-    root.querySelectorAll('.ana-slot').forEach((el, i) => {
-      const known = pattern.letters[i];
-      const mine = tiles.length === need ? tiles[i]?.ch : '';
-      el.textContent = mine || known || '';
-      el.classList.toggle('known', !!known && !mine);
-      el.classList.toggle('preview', !!mine);
-      el.classList.toggle('clash', !!mine && !!known && mine !== known);
-    });
-  }
-
-  function render() {
-    updateFillLater();
-    tilesEl.innerHTML = '';
-    if (!tiles.length) {
-      tilesEl.innerHTML = '<span class="ana-empty">Your tiles will appear here</span>';
-      return;
-    }
-    tiles.forEach((t, i) => {
-      const el = document.createElement('div');
-      el.className = 'ana-tile' + (selected === t.id ? ' selected' : '');
-      el.textContent = t.ch;
-      el.dataset.id = t.id;
-      el.dataset.index = i;
-      tilesEl.appendChild(el);
-    });
+    if (!pattern) { countEl.textContent = ''; return; }
+    const need = freeSlots().length;
+    const have = tiles.length;
+    const letters = answerLetters();
+    btn.disabled = !letters;
+    btn.title = letters ? `Put ${letters.join('')} into ${pattern.label}` : `Needs ${need} more letter${need === 1 ? '' : 's'} to fill the gaps`;
+    countEl.textContent = have === need ? '' : have < need ? `${need - have} to place` : `${have - need} too many`;
+    countEl.classList.toggle('over', have > need);
   }
 
   function shuffle() {
@@ -96,24 +219,23 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
     }
     selected = null;
     render();
-    tilesEl.classList.remove('shuffled'); void tilesEl.offsetWidth; tilesEl.classList.add('shuffled');
+    board.classList.remove('shuffled'); void board.offsetWidth; board.classList.add('shuffled');
   }
 
-  function updateFillLater() { queueMicrotask(updateFill); }
-
+  // ---------- buttons, input, clue words ----------
   root.addEventListener('click', e => {
     const act = e.target.closest('[data-act]')?.dataset.act;
-    if (act === 'fill' && pattern && tiles.length === pattern.letters.length) onFill?.(tiles.map(t => t.ch));
+    if (act === 'fill') { const l = answerLetters(); if (l) onFill?.(l); }
     if (act === 'shuffle') shuffle();
     if (act === 'reset') { tiles = []; setFromInput(); }
     if (act === 'clear') {
-      input.value = ''; tiles = []; render();
+      input.value = ''; tiles = []; selected = null;
       clueTextEl.querySelectorAll('.ana-word.on').forEach(w => w.classList.remove('on'));
+      render();
     }
   });
   input.addEventListener('input', setFromInput);
 
-  // Clue words: tap to add their letters, tap again to take them out.
   clueTextEl.addEventListener('click', e => {
     const w = e.target.closest('.ana-word');
     if (!w) return;
@@ -121,8 +243,7 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
     if (w.classList.toggle('on')) {
       input.value = (input.value + letters.join('')).toUpperCase();
     } else {
-      // remove one of each of this word's letters, starting from the end
-      let v = input.value.toUpperCase().split('');
+      const v = input.value.toUpperCase().split('');
       for (const ch of letters) {
         const at = v.lastIndexOf(ch);
         if (at >= 0) v.splice(at, 1);
@@ -132,64 +253,102 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
     setFromInput();
   });
 
-  // ----- drag / tap -----
+  // ---------- drag, tap-to-swap, press-and-hold ----------
   let drag = null;
-  tilesEl.addEventListener('pointerdown', e => {
-    const el = e.target.closest('.ana-tile');
+  const targetAt = (x, y) => [...board.querySelectorAll('[data-index]')].find(t => {
+    const r = t.getBoundingClientRect();
+    return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  });
+
+  board.addEventListener('contextmenu', e => e.preventDefault());
+  board.addEventListener('pointerdown', e => {
+    const el = e.target.closest('.ana-tile, .ana-slot');
     if (!el) return;
     e.preventDefault();
+    const slot = el.dataset.slot != null ? +el.dataset.slot : null;
     const rect = el.getBoundingClientRect();
-    drag = { id: +el.dataset.id, el, startX: e.clientX, startY: e.clientY, dx: e.clientX - rect.left, dy: e.clientY - rect.top, moved: false, ghost: null, pointerId: e.pointerId };
-    tilesEl.setPointerCapture(e.pointerId);
+    drag = {
+      el, slot, pointerId: e.pointerId,
+      id: el.dataset.id ? +el.dataset.id : null,
+      startX: e.clientX, startY: e.clientY, dx: e.clientX - rect.left, dy: e.clientY - rect.top,
+      moved: false, ghost: null, held: false, timer: null,
+    };
+    if (slot != null && pattern?.fixed[slot] && (locked.has(slot) || drag.id != null)) {
+      el.classList.add('pressing');
+      drag.timer = setTimeout(() => {
+        if (!drag || drag.moved) return;
+        drag.held = true;
+        toggleLock(slot);
+      }, LONG_PRESS_MS);
+    }
+    board.setPointerCapture(e.pointerId);
   });
-  tilesEl.addEventListener('pointermove', e => {
-    if (!drag || e.pointerId !== drag.pointerId) return;
+
+  board.addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== drag.pointerId || drag.held) return;
     if (!drag.moved && Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < 6) return;
+    if (drag.id == null) return; // locked tiles and empty slots don't move
     if (!drag.moved) {
       drag.moved = true;
+      clearTimeout(drag.timer);
+      drag.el.classList.remove('pressing');
       selected = null;
       const g = drag.el.cloneNode(true);
       g.className = 'ana-tile ghost';
+      g.style.setProperty('--tile', getComputedStyle(board).getPropertyValue('--tile'));
       document.body.appendChild(g);
       drag.ghost = g;
       render();
-      tilesEl.querySelector(`[data-id="${drag.id}"]`)?.classList.add('placeholder');
+      board.querySelector(`[data-id="${drag.id}"]`)?.classList.add('placeholder');
     }
     drag.ghost.style.left = `${e.clientX - drag.dx}px`;
     drag.ghost.style.top = `${e.clientY - drag.dy}px`;
-    // find the tile under the pointer and move the dragged tile to its slot
-    const under = [...tilesEl.querySelectorAll('.ana-tile')].find(t => {
-      const r = t.getBoundingClientRect();
-      return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
-    });
+    const under = targetAt(e.clientX, e.clientY);
     if (under && +under.dataset.id !== drag.id) {
       const from = tiles.findIndex(t => t.id === drag.id);
-      const to = +under.dataset.index;
-      const [t] = tiles.splice(from, 1);
-      tiles.splice(to, 0, t);
-      render();
-      tilesEl.querySelector(`[data-id="${drag.id}"]`)?.classList.add('placeholder');
+      const to = Math.min(+under.dataset.index, tiles.length - 1);
+      if (from !== to) {
+        const [t] = tiles.splice(from, 1);
+        tiles.splice(to, 0, t);
+        render();
+        board.querySelector(`[data-id="${drag.id}"]`)?.classList.add('placeholder');
+      }
     }
   });
+
   const endDrag = e => {
     if (!drag || e.pointerId !== drag.pointerId) return;
-    if (!drag.moved) {
-      // tap: select / swap
-      if (selected == null) selected = drag.id;
-      else if (selected === drag.id) selected = null;
-      else {
-        const a = tiles.findIndex(t => t.id === selected);
-        const b = tiles.findIndex(t => t.id === drag.id);
-        [tiles[a], tiles[b]] = [tiles[b], tiles[a]];
+    clearTimeout(drag.timer);
+    drag.el.classList.remove('pressing');
+    if (!drag.moved && !drag.held) {
+      if (drag.id != null) {
+        // tap a tile: select, or swap with the selected one
+        if (selected == null) selected = drag.id;
+        else if (selected === drag.id) selected = null;
+        else {
+          const a = tiles.findIndex(t => t.id === selected);
+          const b = tiles.findIndex(t => t.id === drag.id);
+          [tiles[a], tiles[b]] = [tiles[b], tiles[a]];
+          selected = null;
+        }
+      } else if (drag.el.classList.contains('ana-slot') && selected != null) {
+        // tap an empty square: move the selected tile there
+        const from = tiles.findIndex(t => t.id === selected);
+        const [t] = tiles.splice(from, 1);
+        tiles.splice(Math.min(+drag.el.dataset.index, tiles.length), 0, t);
         selected = null;
+      } else if (drag.el.classList.contains('locked')) {
+        drag.el.classList.remove('nudge'); void drag.el.offsetWidth; drag.el.classList.add('nudge');
+        drag.ghost?.remove(); drag = null;
+        return;
       }
     }
     drag.ghost?.remove();
     drag = null;
     render();
   };
-  tilesEl.addEventListener('pointerup', endDrag);
-  tilesEl.addEventListener('pointercancel', endDrag);
+  board.addEventListener('pointerup', endDrag);
+  board.addEventListener('pointercancel', endDrag);
 
   render();
 
@@ -199,36 +358,33 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
       pattern = p || null;
       const key = p ? `${p.label}|${p.clue}` : null;
       if (key !== lastClueKey) {
-        // new clue: start fresh
+        // a different clue: start fresh
         lastClueKey = key;
-        input.value = ''; tiles = []; selected = null; render();
+        input.value = ''; tiles = []; selected = null;
         clueEl.hidden = !p?.clue;
         clueTextEl.innerHTML = '';
-        if (p?.clue) {
-          for (const part of p.clue.split(/(\s+)/)) {
-            if (/^\s+$/.test(part) || !part) { clueTextEl.append(part); continue; }
-            if (/[A-Za-z]/.test(part)) {
-              const b = document.createElement('button');
-              b.type = 'button';
-              b.className = 'ana-word';
-              b.dataset.letters = part;
-              b.textContent = part;
-              clueTextEl.append(b);
-            } else {
-              const sp = document.createElement('span');
-              sp.className = 'ana-nonword';
-              sp.textContent = part;
-              clueTextEl.append(sp);
-            }
+        for (const part of (p?.clue || '').split(/(\s+)/)) {
+          if (!part) continue;
+          if (/^\s+$/.test(part)) { clueTextEl.append(part); continue; }
+          if (/[A-Za-z]/.test(part)) {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'ana-word';
+            b.dataset.letters = part;
+            b.textContent = part;
+            clueTextEl.append(b);
+          } else {
+            const sp = document.createElement('span');
+            sp.className = 'ana-nonword';
+            sp.textContent = part;
+            clueTextEl.append(sp);
           }
         }
       }
-      if (p) {
-        patternEl.hidden = false;
-        patternEl.innerHTML = `<span class="ana-pattern-label">${p.label}</span>` +
-          p.letters.map(ch => `<span class="ana-slot${ch ? ' known' : ''}">${ch || ''}</span>`).join('');
-      } else patternEl.hidden = true;
-      updateFill();
+      // letters confirmed by finished crossing answers start locked
+      locked = new Set(p ? p.fixed.map((f, s) => (f ? s : -1)).filter(s => s >= 0) : []);
+      boardLabel.textContent = p ? `${p.label}${p.enumText ? ` (${p.enumText})` : ''}` : '';
+      setFromInput();
       // on phones, don't pop up the keyboard straight away; the clue words are the quicker way in
       if (!matchMedia('(pointer: coarse)').matches && !p?.clue) setTimeout(() => input.focus(), 50);
     },

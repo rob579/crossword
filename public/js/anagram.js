@@ -2,7 +2,8 @@
 // Letters are loaded by tapping clue words or typing, then arranged on an
 // "answer board" laid out like the answer: one slot per square, split into
 // words/hyphenated parts. Letters already confirmed by a completed crossing
-// answer are locked in place (press and hold to unlock / re-lock).
+// answer start locked in place. Press and hold any letter on the board to lock
+// it where it is (e.g. the AND in "X AND Y"), and again to unlock it.
 
 const LONG_PRESS_MS = 550;
 
@@ -23,7 +24,7 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
       <button type="button" class="btn ghost" data-act="clear">Clear</button>
       <button type="button" class="btn primary ana-fill" data-act="fill" disabled>Fill in answer</button>
     </div>
-    <p class="ana-hint">Drag tiles, or tap two to swap. <span class="ana-lock-hint">🔒 letters come from finished crossing answers – press and hold one to unlock it.</span></p>`;
+    <p class="ana-hint">Drag tiles, or tap two to swap. Press and hold a letter to lock it in place (shuffle leaves it alone); hold again to unlock.<span class="ana-lock-hint"> Blue 🔒 letters come from finished crossing answers.</span></p>`;
 
   const input = root.querySelector('.ana-input');
   const board = root.querySelector('.ana-board');
@@ -35,7 +36,7 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
 
   let pattern = null;   // { label, clue, letters[], fixed[], breaks[] } for the current answer
   let lastClueKey = null;
-  let locked = new Set(); // slot indices locked in place
+  let locked = new Map(); // slot index -> letter locked in that square
   let tiles = [];         // movable tiles, in the order they fill the free slots: [{ id, ch }]
   let nextId = 1;
   let selected = null;    // tile id picked for tap-to-swap
@@ -49,8 +50,8 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
   // keeping the current arrangement where possible.
   function setFromInput() {
     const need = lettersOf(input.value);
-    for (const s of locked) {
-      const at = need.indexOf(pattern.letters[s]);
+    for (const ch of locked.values()) {
+      const at = need.indexOf(ch);
       if (at >= 0) need.splice(at, 1);
     }
     const kept = [];
@@ -65,10 +66,10 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
   }
 
   function toggleLock(slot) {
-    if (!pattern?.fixed[slot]) return;
-    const ch = pattern.letters[slot];
+    if (!pattern) return;
     if (locked.has(slot)) {
-      // unlock: the letter becomes a movable tile, placed where it was
+      // unlock: the letter becomes a movable tile again, placed where it was
+      const ch = locked.get(slot);
       const before = new Set(tiles.map(t => t.id));
       locked.delete(slot);
       setFromInput();
@@ -79,10 +80,12 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
         tiles.splice(Math.min(target, tiles.length), 0, t);
       }
     } else {
-      // re-lock: drop the tile that was sitting in this slot (if it's the same letter)
+      // lock the tile sitting in this square (move it to the end so it's the one taken out of play)
       const k = freeSlots().indexOf(slot);
-      if (tiles[k]?.ch === ch) tiles.push(tiles.splice(k, 1)[0]);
-      locked.add(slot);
+      const t = tiles[k];
+      if (!t) return;
+      tiles.push(tiles.splice(k, 1)[0]);
+      locked.set(slot, t.ch);
       setFromInput();
     }
     navigator.vibrate?.(15);
@@ -125,8 +128,11 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
       const grid = pattern.letters[s];
       let el;
       if (locked.has(s)) {
-        el = tileEl('ana-tile locked', grid, { slot: s });
-        el.title = 'From a finished crossing answer – press and hold to unlock';
+        const ch = locked.get(s);
+        const fromGrid = pattern.fixed[s] && ch === grid;
+        el = tileEl(`ana-tile locked ${fromGrid ? 'from-grid' : 'mine'}`, ch, { slot: s });
+        if (grid && grid !== ch) el.classList.add('clash');
+        el.title = fromGrid ? 'From a finished crossing answer – press and hold to unlock' : 'Locked – press and hold to unlock';
       } else if (tiles[k]) {
         const t = tiles[k];
         el = tileEl('ana-tile', t.ch, { id: t.id, index: k, slot: s });
@@ -191,7 +197,7 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
   function answerLetters() {
     const free = freeSlots();
     if (!pattern || tiles.length !== free.length) return null;
-    return pattern.letters.map((ch, s) => (locked.has(s) ? ch : tiles[free.indexOf(s)].ch));
+    return pattern.letters.map((ch, s) => (locked.has(s) ? locked.get(s) : tiles[free.indexOf(s)].ch));
   }
 
   function updateFill() {
@@ -230,6 +236,7 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
     if (act === 'reset') { tiles = []; setFromInput(); }
     if (act === 'clear') {
       input.value = ''; tiles = []; selected = null;
+      for (const [s, ch] of [...locked]) if (!(pattern?.fixed[s] && pattern.letters[s] === ch)) locked.delete(s);
       clueTextEl.querySelectorAll('.ana-word.on').forEach(w => w.classList.remove('on'));
       render();
     }
@@ -273,7 +280,7 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
       startX: e.clientX, startY: e.clientY, dx: e.clientX - rect.left, dy: e.clientY - rect.top,
       moved: false, ghost: null, held: false, timer: null,
     };
-    if (slot != null && pattern?.fixed[slot] && (locked.has(slot) || drag.id != null)) {
+    if (slot != null && pattern && (locked.has(slot) || drag.id != null)) {
       el.classList.add('pressing');
       drag.timer = setTimeout(() => {
         if (!drag || drag.moved) return;
@@ -357,6 +364,7 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
       const p = getPattern?.();
       pattern = p || null;
       const key = p ? `${p.label}|${p.clue}` : null;
+      const prevKey = lastClueKey;
       if (key !== lastClueKey) {
         // a different clue: start fresh
         lastClueKey = key;
@@ -381,8 +389,13 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
           }
         }
       }
-      // letters confirmed by finished crossing answers start locked
-      locked = new Set(p ? p.fixed.map((f, s) => (f ? s : -1)).filter(s => s >= 0) : []);
+      // letters confirmed by finished crossing answers start locked;
+      // reopening the same clue keeps any letters you locked yourself
+      const sameClue = key === prevKey;
+      const mine = sameClue ? [...locked].filter(([s, ch]) => !(p.fixed[s] && p.letters[s] === ch)) : [];
+      locked = new Map();
+      if (p) p.fixed.forEach((f, s) => { if (f) locked.set(s, p.letters[s]); });
+      for (const [s, ch] of mine) if (!locked.has(s) && s < p.letters.length) locked.set(s, ch);
       boardLabel.textContent = p ? `${p.label}${p.enumText ? ` (${p.enumText})` : ''}` : '';
       setFromInput();
       // on phones, don't pop up the keyboard straight away; the clue words are the quicker way in

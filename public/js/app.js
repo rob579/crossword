@@ -757,7 +757,68 @@ onSyncStatus(({ state, message }) => {
   pill.title = message;
 });
 
+// ---- appearance ----
+const T = window.cwTheme;
+function buildColourPreview() {
+  // a tiny 5×3 grid using the real cell styles: a highlighted word with the selected square, plus blocks
+  const cells = [
+    ['word', 'C', '1'], ['sel', 'L'], ['word', 'U'], ['word', 'E'], ['block'],
+    ['', 'A', '2'], ['block'], ['', ''], ['block'], ['', ''],
+    ['', 'T', '3'], ['', 'R'], ['', 'E'], ['', 'A'], ['', 'T'],
+  ];
+  $('#colour-preview').innerHTML = cells.map(([cls, ch, num]) =>
+    cls === 'block' ? '<div class="cell block"></div>'
+      : `<div class="cell ${cls}">${num ? `<span class="num">${num}</span>` : ''}<span class="ltr">${ch}</span></div>`).join('');
+}
+function syncAppearanceUI() {
+  for (const r of $$('input[name="theme"]')) r.checked = r.value === T.state.theme;
+  const on = T.state.customOn;
+  $('#pref-colours').checked = on;
+  $('#colour-panel').hidden = !on;
+  const c = { ...T.current(), ...(T.state.colours || {}) };
+  for (const inp of $$('[data-colour]')) inp.value = toHex(c[inp.dataset.colour]) || '#000000';
+}
+function toHex(v) {
+  v = String(v || '').trim();
+  if (/^#[0-9a-f]{6}$/i.test(v)) return v.toLowerCase();
+  if (/^#[0-9a-f]{3}$/i.test(v)) return '#' + [...v.slice(1)].map(x => x + x).join('').toLowerCase();
+  const m = v.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  return m ? '#' + m.slice(1, 4).map(n => (+n).toString(16).padStart(2, '0')).join('') : null;
+}
+$('#colour-presets').innerHTML = Object.entries(T.PRESETS).map(([id, p]) =>
+  `<button type="button" class="preset" data-preset="${id}"><i style="background:${p.paper}"></i><i style="background:${p.block}"></i><i style="background:${p.sel}"></i>${p.name}</button>`).join('');
+buildColourPreview();
+for (const r of $$('input[name="theme"]')) r.addEventListener('change', () => { T.state.theme = r.value; syncAppearanceUI(); });
+$('#pref-colours').addEventListener('change', e => {
+  if (e.target.checked && !T.state.colours) {
+    // start from whatever is on screen now
+    const c = {};
+    for (const k of T.KEYS) c[k] = toHex(T.current()[k]);
+    T.state.colours = c;
+  }
+  T.state.customOn = e.target.checked;
+  syncAppearanceUI();
+});
+for (const inp of $$('[data-colour]')) inp.addEventListener('input', () => {
+  T.state.colours = { ...(T.state.colours || {}), [inp.dataset.colour]: inp.value };
+});
+$('#colour-presets').addEventListener('click', e => {
+  const id = e.target.closest('[data-preset]')?.dataset.preset;
+  if (!id) return;
+  const { name, ...c } = T.PRESETS[id];
+  T.state.colours = c;
+  syncAppearanceUI();
+});
+$('#btn-colours-reset').addEventListener('click', () => {
+  T.state.colours = null;          // drop custom values so the theme's own colours show
+  const c = {};
+  for (const k of T.KEYS) c[k] = toHex(T.current()[k]);
+  T.state.colours = c;             // then start the pickers from them
+  syncAppearanceUI();
+});
+
 function openSettings() {
+  syncAppearanceUI();
   $('#token-input').value = local.token();
   $('#settings-msg').textContent = '';
   $('#btn-sync-off').hidden = !local.token();

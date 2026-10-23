@@ -200,10 +200,11 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
   }
   new ResizeObserver(() => sizeTiles(lastLens)).observe(board);
 
+  // letters for each square ('' for a gap); null if nothing is on the board
   function answerLetters() {
-    if (!pattern || spare.length) return null;
-    const out = pattern.letters.map((_, s) => (locked.has(s) ? locked.get(s) : place[s]?.ch));
-    return out.every(Boolean) ? out : null;
+    if (!pattern) return null;
+    const out = pattern.letters.map((_, s) => (locked.has(s) ? locked.get(s) : place[s]?.ch || ''));
+    return out.some(Boolean) ? out : null;
   }
 
   function updateFill() {
@@ -213,9 +214,8 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
     const empty = freeSlots().filter(s => !place[s]).length;
     const letters = answerLetters();
     btn.disabled = !letters;
-    btn.title = letters ? `Put ${letters.join('')} into ${pattern.label}`
-      : spare.length ? 'Place or remove the letters that are not on the answer yet'
-      : `${empty} square${empty === 1 ? '' : 's'} still empty`;
+    btn.title = !letters ? 'Put some letters on the board first'
+      : `Put ${letters.map(c => c || '·').join('')} into ${pattern.label}${empty ? ' (empty squares are left as they are)' : ''}`;
     const parts = [];
     if (empty) parts.push(`${empty} empty`);
     if (spare.length) parts.push(`${spare.length} not placed`);

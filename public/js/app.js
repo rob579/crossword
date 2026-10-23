@@ -806,11 +806,12 @@ const anagram = createAnagrammer($('#anagram-body'), {
     if (!cur) return;
     const cells = activeWordCells();
     if (letters.length !== cells.length) return;
-    setCells(cells.map((i, k) => [i, letters[k]]));
+    // gaps leave the grid square as it is
+    setCells(cells.map((i, k) => [i, letters[k]]).filter(([, ch]) => ch));
     checkComplete(true);
     update();
     $('#dlg-anagram').close();
-    toast(`Filled in ${letters.join('')}`);
+    toast(`Filled in ${letters.map(c => c || '·').join('')}`);
   },
 });
 function openAnagram() { $('#dlg-anagram').showModal(); anagram.open(); }

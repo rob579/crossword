@@ -1,4 +1,4 @@
-import { parseIpuz, clueHtml } from './ipuz.js';
+import { parseIpuz, clueHtml, parseEnumeration } from './ipuz.js';
 import { local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, filledCount } from './store.js';
 import { createAnagrammer } from './anagram.js';
 
@@ -194,7 +194,34 @@ function buildGrid() {
     grid.appendChild(el);
     return el;
   });
+  addWordBreaks();
   paintLetters();
+}
+
+// Thick line between words (3,4) and a small dash for hyphens (3-4).
+function addWordBreaks() {
+  const { model, cellEls } = cur;
+  for (const dir of ['across', 'down']) {
+    for (const cl of model.clues[dir]) {
+      if (!cl.entryIds.length) continue;
+      const en = parseEnumeration(cl);
+      if (!en || !en.breaks.length) continue;
+      const cells = cl.entryIds.flatMap(id => model.entries[id]?.cells || []);
+      if (en.total !== cells.length) continue; // lengths don't match the grid: don't guess
+      const firstDir = model.entries[cl.entryIds[0]].dir;
+      for (const b of en.breaks) {
+        const ci = cells[b.after - 1];
+        // which direction is this cell's word going (linked clues can change direction)
+        const entry = cl.entryIds.map(id => model.entries[id]).find(e => e.cells.includes(ci));
+        const d = entry?.dir || firstDir;
+        // skip if the split falls at the end of one linked part (the grid already shows it)
+        if (entry && entry.cells[entry.cells.length - 1] === ci) continue;
+        const mark = document.createElement('span');
+        mark.className = `${b.type === 'hyphen' ? 'hyph' : 'wbrk'} ${d === 'across' ? 'r' : 'b'}`;
+        cellEls[ci].appendChild(mark);
+      }
+    }
+  }
 }
 
 function paintLetters() {

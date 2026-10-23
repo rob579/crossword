@@ -212,3 +212,28 @@ export function clueHtml(text) {
   const esc = String(text).replace(/&(?![a-z]+;|#\d+;)/gi, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   return esc.replace(/&lt;(\/?)(i|b|em|strong|sub|sup|u)&gt;/gi, '<$1$2>');
 }
+
+// Work out where an answer splits, from an enumeration like "3,4", "(2-5)" or
+// from the end of the clue text, e.g. "Some clue (3,4)".
+// Returns { total, breaks: [{ after, type: 'word' | 'hyphen' }] } or null.
+export function parseEnumeration(clue) {
+  let src = clue.enumeration;
+  if (!src) {
+    const m = String(clue.text || '').replace(/<[^>]*>/g, '').trim().match(/\(([^()]*\d[^()]*)\)\s*$/);
+    if (!m) return null;
+    src = m[1];
+  }
+  src = String(src).replace(/^\(|\)$/g, '').replace(/words?/gi, '').trim();
+  if (!/^\d/.test(src)) return null;
+  const parts = src.split(/(\d+)/); // ['', '3', ',', '4', '']
+  const breaks = [];
+  let total = 0;
+  for (let i = 1; i < parts.length; i += 2) {
+    total += parseInt(parts[i], 10);
+    const sep = parts[i + 1] || '';
+    if (i + 2 >= parts.length) break; // nothing after the last number
+    if (sep.includes('-')) breaks.push({ after: total, type: 'hyphen' });
+    else if (/[,\s.\/]/.test(sep)) breaks.push({ after: total, type: 'word' });
+  }
+  return { total, breaks };
+}

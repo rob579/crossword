@@ -396,3 +396,10 @@ dialog.sheet::backdrop { background: rgba(0,0,0,.35); }
 .toggle-row { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); cursor: pointer; line-height: 1.35; }
 .toggle-row input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--accent); flex: none; }
 .toggle-row .muted { font-size: 13px; }
+
+/* word breaks from enumerations: (3,4) -> thick line, (3-4) -> dash */
+.cell .wbrk, .cell .hyph { position: absolute; z-index: 3; pointer-events: none; background: var(--bar-color); border-radius: 1px; }
+.cell .wbrk.r { top: 0; bottom: 0; width: var(--bar); right: calc(var(--bar) / -2 - .5px); }
+.cell .wbrk.b { left: 0; right: 0; height: var(--bar); bottom: calc(var(--bar) / -2 - .5px); }
+.cell .hyph.r { top: 50%; width: calc(var(--cell) * .32); height: var(--bar); right: calc(var(--cell) * -.16 - .5px); transform: translateY(-50%); }
+.cell .hyph.b { left: 50%; height: calc(var(--cell) * .32); width: var(--bar); bottom: calc(var(--cell) * -.16 - .5px); transform: translateX(-50%); }

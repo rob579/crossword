@@ -776,7 +776,8 @@ function syncAppearanceUI() {
   $('#pref-colours').checked = on;
   $('#colour-panel').hidden = !on;
   const c = { ...T.current(), ...(T.state.colours || {}) };
-  for (const inp of $$('[data-colour]')) inp.value = toHex(c[inp.dataset.colour]) || '#000000';
+  for (const btn of $$('[data-colour]')) btn.querySelector('.swatch').style.background = toHex(c[btn.dataset.colour]) || '#000000';
+  if (!on) closePicker();
 }
 function toHex(v) {
   v = String(v || '').trim();
@@ -799,14 +800,80 @@ $('#pref-colours').addEventListener('change', e => {
   T.state.customOn = e.target.checked;
   syncAppearanceUI();
 });
-for (const inp of $$('[data-colour]')) inp.addEventListener('input', () => {
-  T.state.colours = { ...(T.state.colours || {}), [inp.dataset.colour]: inp.value };
+// ---- colour picker: hue / strength / lightness sliders that always start on the current colour ----
+const hexToHsl = hex => {
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2;
+  let h = 0, s = 0;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    h *= 60;
+  }
+  return { h: Math.round(h), s: Math.round(s * 100), l: Math.round(l * 100) };
+};
+const hslToHex = ({ h, s, l }) => {
+  s /= 100; l /= 100;
+  const k = n => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = n => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))));
+  return '#' + [f(0), f(8), f(4)].map(x => x.toString(16).padStart(2, '0')).join('');
+};
+let picking = null; // { key, hsl }
+function openPicker(key, label) {
+  const hex = toHex({ ...T.current(), ...(T.state.colours || {}) }[key]) || '#808080';
+  picking = { key, hsl: hexToHsl(hex) };
+  $('#picker-title').textContent = label;
+  $$('[data-colour]').forEach(b => b.classList.toggle('editing', b.dataset.colour === key));
+  $('#colour-picker').hidden = false;
+  paintPicker(hex);
+}
+function closePicker() {
+  picking = null;
+  $('#colour-picker').hidden = true;
+  $$('[data-colour]').forEach(b => b.classList.remove('editing'));
+}
+function paintPicker(hex, keepHexBox = false) {
+  const { h, s, l } = picking.hsl;
+  for (const r of $$('[data-hsl]')) r.value = picking.hsl[r.dataset.hsl];
+  if (!keepHexBox) $('#picker-hex').value = hex;
+  $('#picker-swatch').style.background = hex;
+  // slider tracks show what each slider will do
+  const p = $('#colour-picker');
+  p.style.setProperty('--sat-track', `linear-gradient(to right, hsl(${h} 0% ${l}%), hsl(${h} 100% ${l}%))`);
+  p.style.setProperty('--light-track', `linear-gradient(to right, #000, hsl(${h} ${s}% 50%), #fff)`);
+}
+function setPicked(hex) {
+  T.state.colours = { ...(T.state.colours || {}), [picking.key]: hex };
+  $(`[data-colour="${picking.key}"] .swatch`).style.background = hex;
+  paintPicker(hex);
+}
+for (const btn of $$('[data-colour]')) btn.addEventListener('click', () => {
+  if (picking?.key === btn.dataset.colour) closePicker();
+  else openPicker(btn.dataset.colour, btn.querySelector('span').textContent);
 });
+for (const r of $$('[data-hsl]')) r.addEventListener('input', () => {
+  picking.hsl[r.dataset.hsl] = +r.value;
+  setPicked(hslToHex(picking.hsl));
+});
+$('#picker-hex').addEventListener('input', e => {
+  const v = toHex(e.target.value.startsWith('#') ? e.target.value : '#' + e.target.value);
+  if (!v) return;
+  picking.hsl = hexToHsl(v);
+  T.state.colours = { ...(T.state.colours || {}), [picking.key]: v };
+  $(`[data-colour="${picking.key}"] .swatch`).style.background = v;
+  paintPicker(v, true);
+});
+$('#picker-done').addEventListener('click', closePicker);
+
 $('#colour-presets').addEventListener('click', e => {
   const id = e.target.closest('[data-preset]')?.dataset.preset;
   if (!id) return;
   const { name, ...c } = T.PRESETS[id];
   T.state.colours = c;
+  closePicker();
   syncAppearanceUI();
 });
 $('#btn-colours-reset').addEventListener('click', () => {
@@ -814,6 +881,7 @@ $('#btn-colours-reset').addEventListener('click', () => {
   const c = {};
   for (const k of T.KEYS) c[k] = toHex(T.current()[k]);
   T.state.colours = c;             // then start the pickers from them
+  closePicker();
   syncAppearanceUI();
 });
 

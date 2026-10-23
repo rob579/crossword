@@ -178,13 +178,23 @@
         <div class="presets" id="colour-presets"></div>
         <div class="colour-body">
           <div class="colour-rows">
-            <label class="colour-row">Squares <input type="color" data-colour="paper"></label>
-            <label class="colour-row">Black squares <input type="color" data-colour="block"></label>
-            <label class="colour-row">Letters <input type="color" data-colour="letter"></label>
-            <label class="colour-row">Word highlight <input type="color" data-colour="word"></label>
-            <label class="colour-row">Selected square <input type="color" data-colour="sel"></label>
+            <button type="button" class="colour-row" data-colour="paper"><span>Squares</span><i class="swatch"></i></button>
+            <button type="button" class="colour-row" data-colour="block"><span>Black squares</span><i class="swatch"></i></button>
+            <button type="button" class="colour-row" data-colour="letter"><span>Letters</span><i class="swatch"></i></button>
+            <button type="button" class="colour-row" data-colour="word"><span>Word highlight</span><i class="swatch"></i></button>
+            <button type="button" class="colour-row" data-colour="sel"><span>Selected square</span><i class="swatch"></i></button>
           </div>
           <div class="grid preview-grid" id="colour-preview" style="--w:5" aria-hidden="true"></div>
+        </div>
+        <div class="picker" id="colour-picker" hidden>
+          <div class="picker-head"><strong id="picker-title"></strong><i class="swatch big" id="picker-swatch"></i></div>
+          <label class="picker-row"><span>Hue</span><input type="range" min="0" max="360" step="1" data-hsl="h"></label>
+          <label class="picker-row"><span>Strength</span><input type="range" min="0" max="100" step="1" data-hsl="s"></label>
+          <label class="picker-row"><span>Lightness</span><input type="range" min="0" max="100" step="1" data-hsl="l"></label>
+          <div class="picker-foot">
+            <label class="picker-hex">Hex <input type="text" id="picker-hex" maxlength="7" spellcheck="false" autocomplete="off"></label>
+            <button type="button" class="btn" id="picker-done">Done</button>
+          </div>
         </div>
         <div><button type="button" class="btn ghost" id="btn-colours-reset">Reset to theme colours</button></div>
       </div>

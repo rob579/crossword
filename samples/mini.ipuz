@@ -1,0 +1,27 @@
+{
+  "version": "http://ipuz.org/v2",
+  "kind": ["http://ipuz.org/crossword#1"],
+  "title": "Sample Mini",
+  "author": "Test Setter",
+  "dimensions": { "width": 5, "height": 5 },
+  "block": "#",
+  "empty": 0,
+  "puzzle": [
+    [1, 2, 3, 4, "#"],
+    [5, 0, 0, 0, 6],
+    [7, 0, {"cell": 0, "style": {"shapebg": "circle"}}, 0, 0],
+    [8, 0, 0, 0, 0],
+    ["#", 9, 0, 0, 0]
+  ],
+  "solution": [
+    ["C", "A", "S", "T", "#"],
+    ["A", "L", "O", "H", "A"],
+    ["R", "O", "U", "S", "E"],
+    ["E", "N", "T", "E", "R"],
+    ["#", "E", "H", "S", "O"]
+  ],
+  "clues": {
+    "Across": [[1, "Throw a line"], [5, "Hawaiian hello"], [7, "Wake"], [8, "Key on a keyboard"], {"number": 9, "clue": "<i>Test</i> filler", "enumeration": "4"}],
+    "Down": [[1, "Look after"], [2, "Solo"], [3, "Compass point"], [4, "Plural of this"], [6, "Of the air"]]
+  }
+}

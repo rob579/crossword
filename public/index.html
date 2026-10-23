@@ -1,3 +1,157 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Crossword</title>
-<style>body{font:16px system-ui;display:grid;place-items:center;min-height:100vh;margin:0;background:#f6f3ec;color:#1d1f24}</style></head>
-<body><p>Crossword — first version is on the <code>testing</code> branch awaiting approval.</p></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f3ec" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#16181c" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Crossword</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-view="library">
+  <header class="topbar">
+    <button id="btn-home" class="brand" type="button" aria-label="Library">
+      <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      <span>Crossword</span>
+    </button>
+    <div class="spacer"></div>
+    <button id="sync-pill" class="sync-pill" type="button" data-state="off"><span class="dot"></span><span class="txt">Sync off</span></button>
+    <button id="btn-settings" class="icon-btn" type="button" aria-label="Settings" title="Settings">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+    </button>
+  </header>
+
+  <main>
+    <!-- Library -->
+    <section id="view-library" class="view library">
+      <div class="lib-head">
+        <h1>Your puzzles</h1>
+        <label class="btn primary">
+          Import .ipuz
+          <input type="file" id="file-input" accept=".ipuz,.json,application/json,application/x-ipuz" multiple hidden>
+        </label>
+      </div>
+      <div id="lib-list" class="lib-list"></div>
+      <div id="lib-empty" class="lib-empty">
+        <p class="lib-empty-title">No puzzles yet</p>
+        <p>Import an <code>.ipuz</code> file to get started — tap <strong>Import</strong>, or drop a file anywhere on this page.</p>
+      </div>
+    </section>
+
+    <!-- Solver -->
+    <section id="view-solver" class="view solver" hidden>
+      <div class="solver-toolbar">
+        <button type="button" class="icon-btn back" data-act="library" aria-label="Back to library">‹</button>
+        <div class="puz-title">
+          <strong id="puz-title"></strong>
+          <span id="puz-author"></span>
+        </div>
+        <div class="tools">
+          <button type="button" class="tool" id="puz-notes" data-act="notes" hidden title="Notes">ⓘ</button>
+          <button type="button" class="tool" data-act="anagram" title="Anagrammer">Aa<span class="tool-label"> Anagram</span></button>
+          <button type="button" class="tool only-narrow" data-act="clues">Clues</button>
+          <details class="menu only-wide">
+            <summary class="tool">Check</summary>
+            <div class="menu-items">
+              <button type="button" data-act="check:cell" data-needs-solution>Letter</button>
+              <button type="button" data-act="check:word" data-needs-solution>Word</button>
+              <button type="button" data-act="check:all" data-needs-solution>Puzzle</button>
+            </div>
+          </details>
+          <details class="menu only-wide">
+            <summary class="tool">Reveal</summary>
+            <div class="menu-items">
+              <button type="button" data-act="reveal:cell" data-needs-solution>Letter</button>
+              <button type="button" data-act="reveal:word" data-needs-solution>Word</button>
+              <button type="button" data-act="reveal:all" data-needs-solution>Puzzle</button>
+            </div>
+          </details>
+          <details class="menu only-wide">
+            <summary class="tool">Clear</summary>
+            <div class="menu-items">
+              <button type="button" data-act="clear:cell">Letter</button>
+              <button type="button" data-act="clear:word">Word</button>
+              <button type="button" data-act="clear:all">Puzzle</button>
+            </div>
+          </details>
+          <details class="menu only-narrow">
+            <summary class="tool more" aria-label="More actions">⋯</summary>
+            <div class="menu-items">
+              <span class="menu-heading">Check</span>
+              <button type="button" data-act="check:cell" data-needs-solution>Check letter</button>
+              <button type="button" data-act="check:word" data-needs-solution>Check word</button>
+              <button type="button" data-act="check:all" data-needs-solution>Check puzzle</button>
+              <span class="menu-heading">Reveal</span>
+              <button type="button" data-act="reveal:cell" data-needs-solution>Reveal letter</button>
+              <button type="button" data-act="reveal:word" data-needs-solution>Reveal word</button>
+              <button type="button" data-act="reveal:all" data-needs-solution>Reveal puzzle</button>
+              <span class="menu-heading">Clear</span>
+              <button type="button" data-act="clear:word">Clear word</button>
+              <button type="button" data-act="clear:all">Clear puzzle</button>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <div class="solver-body">
+        <div class="board-col">
+          <div class="cluebar" id="cluebar">
+            <button type="button" class="cluebar-nav" id="cluebar-prev" aria-label="Previous clue">‹</button>
+            <div class="cluebar-body" id="cluebar-body" title="Tap to switch direction">
+              <span class="cluebar-num" id="cluebar-num"></span>
+              <span class="cluebar-text" id="cluebar-text"></span>
+            </div>
+            <button type="button" class="cluebar-nav" id="cluebar-next" aria-label="Next clue">›</button>
+          </div>
+          <div class="board" id="board">
+            <div class="grid" id="grid"></div>
+          </div>
+        </div>
+        <div class="clue-sheet-backdrop" id="clue-sheet-backdrop"></div>
+        <aside class="clue-panel" id="clue-panel">
+          <div class="clue-col"><h2>Across</h2><ol id="clues-across" class="clue-list"></ol></div>
+          <div class="clue-col"><h2>Down</h2><ol id="clues-down" class="clue-list"></ol></div>
+        </aside>
+      </div>
+      <div class="keyboard" id="keyboard"></div>
+    </section>
+  </main>
+
+  <!-- Anagrammer -->
+  <dialog id="dlg-anagram" class="sheet">
+    <div class="dlg-head">
+      <h2>Anagrammer</h2>
+      <button type="button" class="icon-btn" id="btn-anagram-close" aria-label="Close">✕</button>
+    </div>
+    <div id="anagram-body" class="anagram"></div>
+  </dialog>
+
+  <!-- Settings -->
+  <dialog id="dlg-settings" class="sheet">
+    <form id="settings-form">
+      <div class="dlg-head">
+        <h2>Sync across devices</h2>
+        <button type="button" class="icon-btn" id="btn-settings-close" aria-label="Close">✕</button>
+      </div>
+      <p class="muted">Enter the sync key you set as <code>SYNC_TOKEN</code> in Cloudflare. Use the same key on each device and your puzzles and progress follow you. Without it, everything is saved on this device only.</p>
+      <label for="token-input" class="field-label">Sync key</label>
+      <div class="field-row">
+        <input id="token-input" type="password" autocomplete="off" spellcheck="false" placeholder="your sync key">
+        <button type="button" class="btn ghost" id="btn-token-show">Show</button>
+      </div>
+      <p id="settings-msg" class="settings-msg" role="status"></p>
+      <div class="dlg-actions">
+        <button type="button" class="btn ghost" id="btn-sync-off" hidden>Turn off sync</button>
+        <button type="submit" class="btn primary">Save &amp; sync</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="drop-hint">Drop .ipuz files to import</div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

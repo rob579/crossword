@@ -149,6 +149,7 @@ function openPuzzle(id) {
 
   buildGrid();
   buildClues();
+  markDoneClues();
   showView('solver');
   sizeGrid();
   cur.wasFull = filledCount(progress) >= total;
@@ -235,7 +236,18 @@ function paintLetters() {
     el.classList.toggle('revealed', p?.f === 'r' && !!p.v);
     el.classList.toggle('wrong', cur.wrong.has(i));
   });
+  markDoneClues();
   checkComplete(false);
+}
+
+// Fade clues whose squares are all filled in.
+function markDoneClues() {
+  const { model } = cur;
+  for (const li of $$('#clue-panel .clue')) {
+    const cl = clueById(li.dataset.clue);
+    const cells = cl ? cl.entryIds.flatMap(id => model.entries[id]?.cells || []) : [];
+    li.classList.toggle('done', cells.length > 0 && cells.every(i => valueAt(i)));
+  }
 }
 
 function buildClues() {

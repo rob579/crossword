@@ -24,7 +24,7 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
       <button type="button" class="btn ghost" data-act="clear">Clear</button>
       <button type="button" class="btn primary ana-fill" data-act="fill" disabled>Fill in answer</button>
     </div>
-    <p class="ana-hint">Drag tiles, or tap two to swap. Press and hold a letter to lock it in place (shuffle leaves it alone); hold again to unlock.<span class="ana-lock-hint"> Blue 🔒 letters come from finished crossing answers.</span></p>`;
+    <p class="ana-hint">Drag tiles, or tap two to swap. Press and hold a letter to lock it in place (shuffle leaves it alone); hold again to unlock.<span class="ana-lock-hint"> Blue 🔒 letters come from finished crossing answers; green ✔ ones from answers you've confirmed.</span></p>`;
 
   const input = root.querySelector('.ana-input');
   const board = root.querySelector('.ana-board');
@@ -130,9 +130,10 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
       if (locked.has(s)) {
         const ch = locked.get(s);
         const fromGrid = pattern.fixed[s] && ch === grid;
-        el = tileEl(`ana-tile locked ${fromGrid ? 'from-grid' : 'mine'}`, ch, { slot: s });
+        const sure = fromGrid && pattern.fixed[s] === 'confirmed';
+        el = tileEl(`ana-tile locked ${fromGrid ? 'from-grid' : 'mine'}${sure ? ' sure' : ''}`, ch, { slot: s });
         if (grid && grid !== ch) el.classList.add('clash');
-        el.title = fromGrid ? 'From a finished crossing answer – press and hold to unlock' : 'Locked – press and hold to unlock';
+        el.title = sure ? 'From a confirmed answer – press and hold to unlock' : fromGrid ? 'From a finished crossing answer – press and hold to unlock' : 'Locked – press and hold to unlock';
       } else if (tiles[k]) {
         const t = tiles[k];
         el = tileEl('ana-tile', t.ch, { id: t.id, index: k, slot: s });

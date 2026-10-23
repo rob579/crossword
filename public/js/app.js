@@ -267,11 +267,64 @@ function paintLetters() {
 // Fade clues whose squares are all filled in.
 function markDoneClues() {
   const { model } = cur;
+  const unconfirm = [];
   for (const li of $$('#clue-panel .clue')) {
     const cl = clueById(li.dataset.clue);
-    const cells = cl ? cl.entryIds.flatMap(id => model.entries[id]?.cells || []) : [];
-    li.classList.toggle('done', cells.length > 0 && cells.every(i => valueAt(i)));
+    const done = clueComplete(cl);
+    li.classList.toggle('done', done);
+    // a confirmed answer that's no longer complete loses its confirmation
+    if (cl && isConfirmed(cl.id) && !done) unconfirm.push(cl.id);
+    li.classList.toggle('confirmed', !!cl && done && isConfirmed(cl.id));
   }
+  if (unconfirm.length) setConfirmed(unconfirm, false);
+  void model;
+}
+
+const clueCells = cl => (cl ? cl.entryIds.flatMap(id => cur.model.entries[id]?.cells || []) : []);
+function clueComplete(cl) { const c = clueCells(cl); return c.length > 0 && c.every(i => valueAt(i)); }
+const isConfirmed = id => !!cur.progress.confirmed?.[id]?.on;
+
+// Mark clues as confirmed ("I'm sure of this answer"); synced with progress.
+function setConfirmed(ids, on) {
+  const t = Date.now();
+  cur.progress.confirmed = { ...(cur.progress.confirmed || {}) };
+  for (const id of [].concat(ids)) cur.progress.confirmed[id] = { on, t };
+  cur.progress.updatedAt = t;
+  local.putProgress(cur.id, cur.progress);
+  local.markDirty(cur.id);
+  schedulePush();
+}
+function toggleConfirmed(cl) {
+  if (!cl || !cl.entryIds.length) return;
+  if (!isConfirmed(cl.id) && !clueComplete(cl)) { toast('Fill in the whole answer before marking it as confirmed'); return; }
+  const on = !isConfirmed(cl.id);
+  setConfirmed(cl.id, on);
+  navigator.vibrate?.(15);
+  markDoneClues();
+  update();
+  toast(on ? `${cl.number} ${cl.dir === 'across' ? 'Across' : 'Down'} confirmed ✓` : 'Confirmation removed', 1800);
+}
+
+// press and hold (on a clue in the list, or on the clue bar) to confirm / unconfirm
+function onLongPress(el, getClue) {
+  let timer = null, start = null, fired = false;
+  const cancel = () => { clearTimeout(timer); timer = null; el.querySelectorAll('.pressing').forEach(x => x.classList.remove('pressing')); el.classList.remove('pressing'); };
+  el.addEventListener('pointerdown', e => {
+    if (!cur || e.button > 0) return;
+    const target = getClue(e) ;
+    if (!target) return;
+    fired = false;
+    start = { x: e.clientX, y: e.clientY };
+    target.el.classList.add('pressing');
+    timer = setTimeout(() => { fired = true; cancel(); toggleConfirmed(target.clue); }, 550);
+  });
+  el.addEventListener('pointermove', e => { if (timer && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 8) cancel(); });
+  el.addEventListener('pointerup', cancel);
+  el.addEventListener('pointercancel', cancel);
+  el.addEventListener('pointerleave', cancel);
+  el.addEventListener('contextmenu', e => e.preventDefault());
+  // swallow the click that follows a long press
+  el.addEventListener('click', e => { if (fired) { e.stopImmediatePropagation(); e.preventDefault(); fired = false; } }, true);
 }
 
 function buildClues() {
@@ -336,6 +389,7 @@ function update() {
     const len = activeWordCells().length;
     const enumTxt = cl.enumeration ? cl.enumeration : len;
     $('#cluebar-num').textContent = `${cl.number}${cl.dir === 'across' ? 'A' : 'D'}`;
+    $('#cluebar').classList.toggle('confirmed', isConfirmed(cl.id) && clueComplete(cl));
     const showEnum = !hasEnum(cl.text);
     $('#cluebar-text').innerHTML = `${clueHtml(cl.text) || '<em class="muted">No clue</em>'}${showEnum ? ` <span class="enum">(${clueHtml(String(enumTxt))})</span>` : ''}`;
   } else {
@@ -525,6 +579,15 @@ $('#clue-panel').addEventListener('click', e => {
 $('#cluebar-prev').addEventListener('click', () => cur && nextClue(-1));
 $('#cluebar-next').addEventListener('click', () => cur && nextClue(1));
 $('#cluebar-body').addEventListener('click', () => cur && toggleDir());
+onLongPress($('#clue-panel'), e => {
+  const li = e.target.closest('.clue');
+  const clue = li && clueById(li.dataset.clue);
+  return clue ? { el: li, clue } : null;
+});
+onLongPress($('#cluebar-body'), () => {
+  const clue = activeClue();
+  return clue ? { el: $('#cluebar-body'), clue } : null;
+});
 
 const isTypingTarget = el => el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
 
@@ -722,12 +785,18 @@ const anagram = createAnagrammer($('#anagram-body'), {
     const enumTxt = cl.enumeration && !hasEnum(clue) ? ` (${cl.enumeration})` : '';
     const { model } = cur;
     // a letter is "fixed" if the crossing answer through that square is completely filled in
+    // 'confirmed' if the crossing answer (or this one) is marked as confirmed,
+    // 'cross' if the crossing answer is completely filled in, otherwise not fixed
+    const selfConfirmed = isConfirmed(cl.id) && clueComplete(cl);
     const fixed = cells.map(i => {
       if (!valueAt(i)) return false;
+      if (selfConfirmed) return 'confirmed';
       const own = cl.entryIds.map(id => model.entries[id]).find(e => e?.cells.includes(i));
       const other = own?.dir === 'down' ? 'across' : 'down';
       const cross = model.entries[model.cellEntries[i][other]];
-      return !!cross && cross.cells.every(c => valueAt(c));
+      if (!cross || !cross.cells.every(c => valueAt(c))) return false;
+      const crossClue = cur.entryClue[cross.id];
+      return crossClue && isConfirmed(crossClue.id) ? 'confirmed' : 'cross';
     });
     const en = parseEnumeration(cl);
     const breaks = en && en.total === cells.length ? en.breaks : [];

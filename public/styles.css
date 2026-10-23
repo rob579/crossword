@@ -543,3 +543,15 @@ body.editing .cluebar { display: none; }
 .picker-hex { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
 .picker-hex input { width: 96px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: 15px ui-monospace, Menlo, monospace; }
 .preview-grid { --cell: 26px; flex: none; pointer-events: none; }
+
+/* confirmed answers (press and hold a clue) */
+.clue.confirmed { background: color-mix(in srgb, var(--solved) 13%, transparent); }
+.clue.confirmed .clue-num::before { content: "✔"; color: var(--solved); font-size: .8em; margin-right: 3px; }
+.clue.confirmed.active { background: color-mix(in srgb, var(--solved) 22%, var(--word)); }
+.clue { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; transition: background .2s, transform .15s; }
+.clue.pressing, .cluebar-body.pressing { animation: press-clue .55s linear forwards; }
+@keyframes press-clue { to { background: color-mix(in srgb, var(--solved) 25%, transparent); } }
+.cluebar-body { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; border-radius: 8px; }
+.cluebar.confirmed .cluebar-num::after { content: " ✔"; color: var(--solved); }
+.ana-tile.locked.sure { background: color-mix(in srgb, var(--solved) 22%, var(--paper)); color: var(--letter); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--solved) 70%, transparent); }
+.ana-tile.locked.sure::after { content: "✔"; color: var(--solved); font-weight: 900; filter: none; }

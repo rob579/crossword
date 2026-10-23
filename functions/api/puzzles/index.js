@@ -27,6 +27,7 @@ export async function onRequestPost({ request, env }) {
     title: clip(meta.title, 200), author: clip(meta.author, 120),
     width: Number(meta.width) || 0, height: Number(meta.height) || 0,
     cells: Number(meta.cells) || 0, added: Number(meta.added) || Date.now(),
+    rev: Number(meta.rev) || 0,
   };
   const kv = env.CROSSWORD_KV;
   await kv.put(`puzzle:${id}`, raw, { metadata });

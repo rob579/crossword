@@ -1,4 +1,4 @@
-import { parseIpuz, clueHtml, parseEnumeration } from './ipuz.js';
+import { parseIpuz, clueHtml, parseEnumeration, editGrid } from './ipuz.js';
 import { local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, filledCount } from './store.js';
 import { createAnagrammer } from './anagram.js';
 
@@ -129,7 +129,7 @@ function openPuzzle(id) {
 
   const progress = local.getProgress(id);
   const total = openCellCount(model);
-  cur = { id, model, progress, total, wrong: new Set(), entryClue, cellEls: [], wasFull: false, sel: null };
+  cur = { id, raw: rec.raw, editing: null, model, progress, total, wrong: new Set(), entryClue, cellEls: [], wasFull: false, sel: null };
 
   // restore selection
   const firstClue = model.clues.across.find(c => c.entryIds.length) || model.clues.down.find(c => c.entryIds.length);
@@ -158,6 +158,7 @@ function openPuzzle(id) {
 }
 
 function closePuzzle() {
+  if (cur?.editing) stopEditGrid();
   if (cur) flushPush();
   cur = null;
   closeClueSheet();
@@ -468,6 +469,12 @@ $('#grid').addEventListener('click', e => {
   const el = e.target.closest('.cell');
   if (!el || !cur) return;
   const i = +el.dataset.i;
+  if (cur.editing) {
+    if (el.classList.contains('void')) return;
+    if (cur.editing.has(i)) cur.editing.delete(i); else cur.editing.add(i);
+    el.classList.toggle('flip', cur.editing.has(i));
+    return;
+  }
   if (i === cur.sel.cell) toggleDir();
   else selectCell(i);
 });
@@ -486,7 +493,7 @@ $('#cluebar-body').addEventListener('click', () => cur && toggleDir());
 const isTypingTarget = el => el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
 
 document.addEventListener('keydown', e => {
-  if (!cur || $('#view-solver').hidden) return;
+  if (!cur || $('#view-solver').hidden || cur.editing) return;
   if (document.querySelector('dialog[open]') || isTypingTarget(e.target)) return;
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const k = e.key;
@@ -511,7 +518,7 @@ function buildKeyboard() {
   ).join('');
   kb.addEventListener('pointerdown', e => {
     const key = e.target.closest('[data-key]')?.dataset.key;
-    if (!key || !cur) return;
+    if (!key || !cur || cur.editing) return;
     e.preventDefault();
     if (key === 'Backspace') backspace(); else typeLetter(key);
   });
@@ -560,10 +567,59 @@ $('#view-solver').addEventListener('click', e => {
     openAnagram();
   } else if (act === 'library') {
     location.hash = '';
+  } else if (act === 'edit-grid') {
+    startEditGrid();
+  } else if (act === 'edit-cancel') {
+    stopEditGrid();
+  } else if (act === 'edit-save') {
+    saveEditGrid();
   } else if (act === 'notes') {
     alert(model.notes);
   }
 });
+
+// ---- grid editing (fix black/white squares) ----
+function startEditGrid() {
+  closeClueSheet();
+  cur.editing = new Set();
+  $('#grid').classList.add('editing');
+  document.body.classList.add('editing');
+  $('#edit-bar').hidden = false;
+}
+function stopEditGrid() {
+  if (!cur) return;
+  cur.editing = null;
+  $$('#grid .cell.flip').forEach(el => el.classList.remove('flip'));
+  $('#grid').classList.remove('editing');
+  document.body.classList.remove('editing');
+  $('#edit-bar').hidden = true;
+}
+function saveEditGrid() {
+  const flips = [...cur.editing];
+  if (!flips.length) { stopEditGrid(); return; }
+  const id = cur.id;
+  const rec = local.getPuzzle(id);
+  let raw, model;
+  try { raw = editGrid(rec.raw, flips); model = parseIpuz(raw); }
+  catch (e) { toast(`Couldn't update the grid: ${e.message}`, 5000); return; }
+  // clear any letters in squares that are now black
+  const nowBlack = flips.filter(i => model.cells[i].block && valueAt(i)).map(i => [i, '']);
+  if (nowBlack.length) setCells(nowBlack);
+  const meta = { ...rec.meta, cells: openCellCount(model), rev: Date.now() };
+  local.putPuzzle(id, { raw, meta });
+  uploadPuzzle(id, { raw, meta });
+  flushPush();
+  stopEditGrid();
+  reopenPuzzle();
+  // warn if the clue numbers no longer line up with the grid
+  const unmatched = [...model.clues.across, ...model.clues.down].filter(c => !c.entryIds.length).length;
+  toast(unmatched ? `Grid updated, but ${unmatched} clue${unmatched > 1 ? 's' : ''} no longer match the grid` : 'Grid updated', unmatched ? 5000 : 2600);
+}
+function reopenPuzzle() {
+  const id = cur.id;
+  cur = null;
+  openPuzzle(id);
+}
 
 function toggleClueSheet() { document.body.classList.toggle('clues-open'); }
 function closeClueSheet() { document.body.classList.remove('clues-open'); }
@@ -650,6 +706,7 @@ $('#btn-settings-close').addEventListener('click', () => $('#dlg-settings').clos
 function onRemoteChange() {
   if (cur) {
     if (!local.getPuzzle(cur.id)) { toast('This puzzle was deleted on another device'); location.hash = ''; return; }
+    if (local.getPuzzle(cur.id).raw !== cur.raw && !cur.editing) { reopenPuzzle(); return; }
     cur.progress = local.getProgress(cur.id);
     paintLetters();
     update();

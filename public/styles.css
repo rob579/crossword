@@ -403,3 +403,21 @@ dialog.sheet::backdrop { background: rgba(0,0,0,.35); }
 .cell .wbrk.b { left: 0; right: 0; height: var(--bar); bottom: calc(var(--bar) / -2 - .5px); }
 .cell .hyph.r { top: 50%; width: calc(var(--cell) * .32); height: var(--bar); right: calc(var(--cell) * -.16 - .5px); transform: translateY(-50%); }
 .cell .hyph.b { left: 50%; height: calc(var(--cell) * .32); width: var(--bar); bottom: calc(var(--cell) * -.16 - .5px); transform: translateX(-50%); }
+
+/* grid editing */
+.edit-bar {
+  flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  margin: 12px 16px 0; padding: 10px 14px; border-radius: 10px;
+  background: var(--sel); color: var(--sel-ink); font-size: 14px;
+}
+.edit-actions { display: flex; gap: 8px; }
+.edit-bar .btn.ghost { border-color: rgba(0,0,0,.25); color: var(--sel-ink); }
+body.editing .cluebar { display: none; }
+.grid.editing .cell:not(.void) { cursor: pointer; }
+.grid.editing .cell.word, .grid.editing .cell.sel { background: var(--paper); color: var(--letter); }
+.grid.editing .cell.block { background: var(--block); }
+.grid.editing .cell.flip { outline: 2px dashed var(--accent); outline-offset: -4px; }
+.grid.editing .cell.flip.block { background: var(--paper); }
+.grid.editing .cell.flip:not(.block) { background: var(--block); }
+.grid.editing .cell.flip:not(.block) .ltr, .grid.editing .cell.flip:not(.block) .num { visibility: hidden; }
+@media (max-width: 899.98px) { .edit-bar { margin: 8px 8px 0; } }

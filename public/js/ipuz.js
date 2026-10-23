@@ -237,3 +237,41 @@ export function parseEnumeration(clue) {
   }
   return { total, breaks };
 }
+
+// Flip the given cells between black and white, then renumber the grid
+// conventionally. Returns the updated ipuz text.
+export function editGrid(raw, flips) {
+  let t = String(raw).trim();
+  if (!t.startsWith('{')) t = t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1);
+  const d = JSON.parse(t);
+  const width = d.dimensions?.width ?? Math.max(...d.puzzle.map(r => r.length));
+  const block = d.block ?? '#';
+  const empty = d.empty ?? 0;
+  const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
+  const getV = (r, c) => (isObj(d.puzzle[r][c]) ? d.puzzle[r][c].cell : d.puzzle[r][c]);
+  const setV = (r, c, v) => { if (isObj(d.puzzle[r][c])) d.puzzle[r][c].cell = v; else d.puzzle[r][c] = v; };
+
+  for (const i of flips) {
+    const r = Math.floor(i / width), c = i % width;
+    const v = getV(r, c);
+    if (v === null || v === undefined) continue; // outside the grid shape
+    const nowBlock = String(v) === String(block);
+    setV(r, c, nowBlock ? empty : block);
+    if (Array.isArray(d.solution) && d.solution[r]) d.solution[r][c] = nowBlock ? null : block;
+    if (Array.isArray(d.saved) && d.saved[r]) d.saved[r][c] = nowBlock ? empty : block;
+  }
+
+  // Renumber: clear every label, let the parser number the grid, copy the numbers back.
+  const height = d.puzzle.length;
+  for (let r = 0; r < height; r++) for (let c = 0; c < d.puzzle[r].length; c++) {
+    const v = getV(r, c);
+    if (v !== null && v !== undefined && String(v) !== String(block)) setV(r, c, empty);
+  }
+  const model = parseIpuz(JSON.stringify(d));
+  model.cells.forEach((cell, i) => {
+    if (cell.block || cell.void) return;
+    const r = Math.floor(i / width), c = i % width;
+    if (cell.label) setV(r, c, Number(cell.label));
+  });
+  return JSON.stringify(d);
+}

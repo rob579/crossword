@@ -105,6 +105,19 @@ export function syncAll(onChange) {
       for (const [id, rec] of Object.entries(localAll)) {
         if (!remoteIds.has(id)) await api('puzzles', { method: 'POST', body: JSON.stringify({ id, raw: rec.raw, meta: rec.meta }) });
       }
+      // grid edited on one device: newer revision wins
+      for (const p of remote.puzzles) {
+        const mine = localAll[p.id];
+        if (!mine) continue;
+        const lrev = mine.meta?.rev || 0, rrev = p.rev || 0;
+        if (rrev > lrev) {
+          const full = await api(`puzzles/${p.id}`);
+          local.putPuzzle(p.id, { raw: full.raw, meta: { ...mine.meta, ...full.meta } });
+          changed = true;
+        } else if (lrev > rrev) {
+          await api('puzzles', { method: 'POST', body: JSON.stringify({ id: p.id, raw: mine.raw, meta: mine.meta }) });
+        }
+      }
       // download remote-only puzzles
       for (const p of remote.puzzles) {
         if (!localAll[p.id]) {

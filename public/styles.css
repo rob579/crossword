@@ -427,3 +427,18 @@ body.editing .cluebar { display: none; }
 .ana-slot.clash { border-color: var(--wrong); color: var(--wrong); background: color-mix(in srgb, var(--wrong) 12%, var(--paper)); }
 .ana-fill { margin-left: auto; }
 .ana-fill:disabled { opacity: .4; cursor: default; }
+
+/* anagrammer: clue with tappable words */
+.ana-clue { padding: 10px 12px; border-radius: 12px; background: var(--word); color: var(--letter); }
+.ana-clue .ana-hint { margin-top: 6px; color: inherit; opacity: .7; }
+.ana-clue-text { font-size: 17px; line-height: 1.9; }
+.ana-word {
+  font: inherit; border: 0; background: transparent; padding: 1px 3px; margin: 0 -1px;
+  border-radius: 5px; cursor: pointer; color: inherit;
+  text-decoration: underline dotted; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); text-underline-offset: 4px;
+}
+@media (hover: hover) { .ana-word:hover:not(.on) { background: rgba(0,0,0,.07); } }
+.ana-word:focus { outline: none; }
+.ana-word:focus-visible { outline: 2px solid var(--accent); }
+.ana-word.on { background: var(--sel); color: var(--sel-ink); text-decoration: none; }
+.ana-nonword { opacity: .7; }

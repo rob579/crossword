@@ -3,6 +3,10 @@
 
 export function createAnagrammer(root, { getPattern, onFill } = {}) {
   root.innerHTML = `
+    <div class="ana-clue" hidden>
+      <div class="ana-clue-text"></div>
+      <p class="ana-hint">Tap words to load their letters (tap again to remove).</p>
+    </div>
     <div class="ana-pattern" hidden></div>
     <label class="ana-label" for="ana-input">Letters</label>
     <input id="ana-input" class="ana-input" type="text" autocomplete="off" autocorrect="off"
@@ -19,6 +23,9 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
   const input = root.querySelector('.ana-input');
   const tilesEl = root.querySelector('.ana-tiles');
   const patternEl = root.querySelector('.ana-pattern');
+  const clueEl = root.querySelector('.ana-clue');
+  const clueTextEl = root.querySelector('.ana-clue-text');
+  let lastClueKey = null;
   let tiles = []; // [{ id, ch }]
   let nextId = 1;
   let selected = null;
@@ -99,9 +106,31 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
     if (act === 'fill' && pattern && tiles.length === pattern.letters.length) onFill?.(tiles.map(t => t.ch));
     if (act === 'shuffle') shuffle();
     if (act === 'reset') { tiles = []; setFromInput(); }
-    if (act === 'clear') { input.value = ''; tiles = []; render(); input.focus(); }
+    if (act === 'clear') {
+      input.value = ''; tiles = []; render();
+      clueTextEl.querySelectorAll('.ana-word.on').forEach(w => w.classList.remove('on'));
+    }
   });
   input.addEventListener('input', setFromInput);
+
+  // Clue words: tap to add their letters, tap again to take them out.
+  clueTextEl.addEventListener('click', e => {
+    const w = e.target.closest('.ana-word');
+    if (!w) return;
+    const letters = lettersOf(w.dataset.letters);
+    if (w.classList.toggle('on')) {
+      input.value = (input.value + letters.join('')).toUpperCase();
+    } else {
+      // remove one of each of this word's letters, starting from the end
+      let v = input.value.toUpperCase().split('');
+      for (const ch of letters) {
+        const at = v.lastIndexOf(ch);
+        if (at >= 0) v.splice(at, 1);
+      }
+      input.value = v.join('');
+    }
+    setFromInput();
+  });
 
   // ----- drag / tap -----
   let drag = null;
@@ -168,13 +197,40 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
     open() {
       const p = getPattern?.();
       pattern = p || null;
+      const key = p ? `${p.label}|${p.clue}` : null;
+      if (key !== lastClueKey) {
+        // new clue: start fresh
+        lastClueKey = key;
+        input.value = ''; tiles = []; selected = null; render();
+        clueEl.hidden = !p?.clue;
+        clueTextEl.innerHTML = '';
+        if (p?.clue) {
+          for (const part of p.clue.split(/(\s+)/)) {
+            if (/^\s+$/.test(part) || !part) { clueTextEl.append(part); continue; }
+            if (/[A-Za-z]/.test(part)) {
+              const b = document.createElement('button');
+              b.type = 'button';
+              b.className = 'ana-word';
+              b.dataset.letters = part;
+              b.textContent = part;
+              clueTextEl.append(b);
+            } else {
+              const sp = document.createElement('span');
+              sp.className = 'ana-nonword';
+              sp.textContent = part;
+              clueTextEl.append(sp);
+            }
+          }
+        }
+      }
       if (p) {
         patternEl.hidden = false;
         patternEl.innerHTML = `<span class="ana-pattern-label">${p.label}</span>` +
           p.letters.map(ch => `<span class="ana-slot${ch ? ' known' : ''}">${ch || ''}</span>`).join('');
       } else patternEl.hidden = true;
       updateFill();
-      setTimeout(() => input.focus(), 50);
+      // on phones, don't pop up the keyboard straight away; the clue words are the quicker way in
+      if (!matchMedia('(pointer: coarse)').matches && !p?.clue) setTimeout(() => input.focus(), 50);
     },
   };
 }

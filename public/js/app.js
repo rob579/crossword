@@ -646,7 +646,9 @@ const anagram = createAnagrammer($('#anagram-body'), {
     const cl = activeClue();
     if (!cl) return null;
     const cells = activeWordCells();
-    return { label: `${cl.number} ${cl.dir === 'across' ? 'Across' : 'Down'}`, letters: cells.map(i => valueAt(i)) };
+    const clue = String(cl.text || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').trim();
+    const enumTxt = cl.enumeration && !hasEnum(clue) ? ` (${cl.enumeration})` : '';
+    return { label: `${cl.number} ${cl.dir === 'across' ? 'Across' : 'Down'}`, clue: clue + enumTxt, letters: cells.map(i => valueAt(i)) };
   },
   onFill(letters) {
     if (!cur) return;

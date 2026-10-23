@@ -642,7 +642,10 @@ function sizeGrid() {
   if (!cur) return;
   const board = $('#board');
   const { width: W, height: H } = cur.model;
-  const bw = board.clientWidth, bh = board.clientHeight;
+  // clientWidth/Height include the board's padding, so take it off to get the real space
+  const cs = getComputedStyle(board);
+  const bw = board.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const bh = board.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
   if (!bw || !bh) return;
   const cell = Math.max(14, Math.floor(Math.min((bw - 4 - (W - 1)) / W, (bh - 4 - (H - 1)) / H, 64)));
   $('#grid').style.setProperty('--cell', `${cell}px`);

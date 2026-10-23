@@ -1,9 +1,11 @@
 // Anagrammer.
 // Letters are loaded by tapping clue words or typing, then arranged on an
-// "answer board" laid out like the answer: one slot per square, split into
-// words/hyphenated parts. Letters already confirmed by a completed crossing
-// answer start locked in place. Press and hold any letter on the board to lock
-// it where it is (e.g. the AND in "X AND Y"), and again to unlock it.
+// "answer board" laid out like the answer: one square per letter, split into
+// words / hyphenated parts. Each tile sits in a particular square, so gaps can
+// be left anywhere (for letters you don't know yet). Moving a tile onto a
+// square swaps it with whatever is there.
+// Letters confirmed by a completed crossing answer start locked; press and hold
+// any letter to lock it where it is, and again to unlock it.
 
 const LONG_PRESS_MS = 550;
 
@@ -24,7 +26,7 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
       <button type="button" class="btn ghost" data-act="clear">Clear</button>
       <button type="button" class="btn primary ana-fill" data-act="fill" disabled>Fill in answer</button>
     </div>
-    <p class="ana-hint">Drag tiles, or tap two to swap. Press and hold a letter to lock it in place (shuffle leaves it alone); hold again to unlock.<span class="ana-lock-hint"> Blue 🔒 letters come from finished crossing answers; green ✔ ones from answers you've confirmed.</span></p>`;
+    <p class="ana-hint">Drag a tile to any square (leave gaps for letters you don't have yet), or tap two to swap. Press and hold a letter to lock it in place; hold again to unlock.<span class="ana-lock-hint"> Blue 🔒 letters come from finished crossing answers; green ✔ ones from answers you've confirmed.</span></p>`;
 
   const input = root.querySelector('.ana-input');
   const board = root.querySelector('.ana-board');
@@ -34,63 +36,82 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
   const clueEl = root.querySelector('.ana-clue');
   const clueTextEl = root.querySelector('.ana-clue-text');
 
-  let pattern = null;   // { label, clue, letters[], fixed[], breaks[] } for the current answer
+  let pattern = null;     // { label, clue, letters[], fixed[], breaks[] }
   let lastClueKey = null;
-  let locked = new Map(); // slot index -> letter locked in that square
-  let tiles = [];         // movable tiles, in the order they fill the free slots: [{ id, ch }]
+  let locked = new Map(); // slot -> letter locked in that square
+  let place = [];         // slot -> tile placed there (or null); ignored for locked slots
+  let spare = [];         // tiles not on the answer
   let nextId = 1;
-  let selected = null;    // tile id picked for tap-to-swap
+  let selected = null;    // position picked for tap-to-swap: 's:<slot>' or 'x:<index>'
+  let dragging = false;
+  let drag = null;
+  let dragId = null;      // tile being dragged (shown as a placeholder where it currently sits)
 
   const lettersOf = s => String(s).toUpperCase().replace(/[^A-Z]/g, '').split('');
   const N = () => (pattern ? pattern.letters.length : 0);
-  const freeSlots = () => (pattern ? [...Array(N()).keys()].filter(s => !locked.has(s)) : []);
+  const freeSlots = () => [...Array(N()).keys()].filter(s => !locked.has(s));
+  const allTiles = () => [...place.filter(Boolean), ...spare];
+
+  // ---------- positions ----------
+  const getAt = pos => { const [k, n] = pos.split(':'); return k === 's' ? place[+n] || null : spare[+n] || null; };
+  function setAt(pos, tile) {
+    const [k, n] = pos.split(':');
+    if (k === 's') place[+n] = tile;
+    else if (n === 'end' || +n >= spare.length) { if (tile) spare.push(tile); }
+    else spare[+n] = tile;
+  }
+  // swap the contents of two positions (either may be empty)
+  function swap(a, b) {
+    if (a === b) return;
+    const ta = getAt(a), tb = getAt(b);
+    setAt(a, tb); setAt(b, ta);
+    spare = spare.filter(Boolean);
+  }
 
   // ---------- letters in play ----------
-  // The tiles are the typed letters minus any that are locked on the board,
-  // keeping the current arrangement where possible.
-  function setFromInput() {
+  // Tiles = typed letters minus any locked on the board. Existing tiles keep their
+  // squares; new letters go into the first empty squares, then the spare row.
+  function setFromInput({ preferSlot = null } = {}) {
     const need = lettersOf(input.value);
     for (const ch of locked.values()) {
       const at = need.indexOf(ch);
       if (at >= 0) need.splice(at, 1);
     }
-    const kept = [];
-    for (const t of tiles) {
-      const at = need.indexOf(t.ch);
-      if (at >= 0) { kept.push(t); need.splice(at, 1); }
+    const keep = t => { if (!t) return null; const at = need.indexOf(t.ch); if (at < 0) return null; need.splice(at, 1); return t; };
+    place = Array.from({ length: N() }, (_, s) => (locked.has(s) ? null : keep(place[s])));
+    spare = spare.map(keep).filter(Boolean);
+    const fresh = need.map(ch => ({ id: nextId++, ch }));
+    if (preferSlot != null && !locked.has(preferSlot) && !place[preferSlot]) {
+      const ch = pattern.letters[preferSlot];
+      const at = fresh.findIndex(t => t.ch === ch);
+      if (at >= 0) place[preferSlot] = fresh.splice(at, 1)[0];
     }
-    for (const ch of need) kept.push({ id: nextId++, ch });
-    tiles = kept;
-    if (!tiles.some(t => t.id === selected)) selected = null;
+    for (const t of fresh) {
+      const s = freeSlots().find(i => !place[i]);
+      if (s != null) place[s] = t; else spare.push(t);
+    }
+    if (selected && !getAt(selected)) selected = null;
     render();
   }
 
   function toggleLock(slot) {
     if (!pattern) return;
     if (locked.has(slot)) {
-      // unlock: the letter becomes a movable tile again, placed where it was
       const ch = locked.get(slot);
-      const before = new Set(tiles.map(t => t.id));
       locked.delete(slot);
-      setFromInput();
-      const fresh = tiles.findIndex(t => !before.has(t.id) && t.ch === ch);
-      const target = freeSlots().indexOf(slot);
-      if (fresh >= 0 && target >= 0) {
-        const [t] = tiles.splice(fresh, 1);
-        tiles.splice(Math.min(target, tiles.length), 0, t);
-      }
+      setFromInput({ preferSlot: slot }); // the letter comes back as a tile in the same square
+      // a letter locked from the grid that wasn't among the typed letters still comes back as a tile
+      if (!place[slot]) { place[slot] = { id: nextId++, ch }; input.value += ch; }
     } else {
-      // lock the tile sitting in this square (move it to the end so it's the one taken out of play)
-      const k = freeSlots().indexOf(slot);
-      const t = tiles[k];
+      const t = place[slot];
       if (!t) return;
-      tiles.push(tiles.splice(k, 1)[0]);
+      place[slot] = null;
       locked.set(slot, t.ch);
       setFromInput();
     }
     navigator.vibrate?.(15);
     render();
-    board.querySelector(`[data-slot="${slot}"]`)?.classList.add('lock-flash');
+    board.querySelector(`[data-pos="s:${slot}"]`)?.classList.add('lock-flash');
   }
 
   // ---------- rendering ----------
@@ -101,78 +122,63 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
     for (const [k, v] of Object.entries(attrs)) el.dataset[k] = v;
     return el;
   }
+  const tileFor = (t, pos, extra = '') =>
+    tileEl(`ana-tile${extra}${selected === pos ? ' selected' : ''}${dragId === t.id ? ' placeholder' : ''}`, t.ch, { pos, id: t.id });
 
   function render() {
     board.innerHTML = '';
-    if (!pattern) {
-      // no answer to aim at: just a row of tiles
-      const row = document.createElement('div');
-      row.className = 'ana-free';
-      tiles.forEach((t, k) => row.appendChild(tileEl('ana-tile' + (selected === t.id ? ' selected' : ''), t.ch, { id: t.id, index: k })));
-      if (!tiles.length) row.innerHTML = '<span class="ana-empty">Your tiles will appear here</span>';
-      board.appendChild(row);
-      sizeTiles([Math.min(Math.max(1, tiles.length), 10)]);
-      updateFill();
-      return;
-    }
-
-    const n = N();
-    const breakAt = new Map(pattern.breaks.map(b => [b.after, b.type]));
-    const groups = [];
-    let group = null, groupLen = 0;
     const lens = [];
-    const free = freeSlots();
-    for (let s = 0; s < n; s++) {
-      if (!group) { group = document.createElement('div'); group.className = 'ana-group'; groupLen = 0; }
-      const k = free.indexOf(s);
-      const grid = pattern.letters[s];
-      let el;
-      if (locked.has(s)) {
-        const ch = locked.get(s);
-        const fromGrid = pattern.fixed[s] && ch === grid;
-        const sure = fromGrid && pattern.fixed[s] === 'confirmed';
-        el = tileEl(`ana-tile locked ${fromGrid ? 'from-grid' : 'mine'}${sure ? ' sure' : ''}`, ch, { slot: s });
-        if (grid && grid !== ch) el.classList.add('clash');
-        el.title = sure ? 'From a confirmed answer – press and hold to unlock' : fromGrid ? 'From a finished crossing answer – press and hold to unlock' : 'Locked – press and hold to unlock';
-      } else if (tiles[k]) {
-        const t = tiles[k];
-        el = tileEl('ana-tile', t.ch, { id: t.id, index: k, slot: s });
-        if (selected === t.id) el.classList.add('selected');
-        if (grid && grid !== t.ch) el.classList.add('clash');
-        if (pattern.fixed[s]) { el.classList.add('unlocked'); el.title = 'Press and hold to lock this letter again'; }
-      } else {
-        el = tileEl('ana-slot', grid, { index: k, slot: s });
-        if (grid) el.classList.add('hint');
+    if (pattern) {
+      const n = N();
+      const breakAt = new Map(pattern.breaks.map(b => [b.after, b.type]));
+      const ans = document.createElement('div');
+      ans.className = 'ana-answer';
+      let group = null, groupLen = 0;
+      for (let s = 0; s < n; s++) {
+        if (!group) { group = document.createElement('div'); group.className = 'ana-group'; groupLen = 0; }
+        const grid = pattern.letters[s];
+        const pos = `s:${s}`;
+        let el;
+        if (locked.has(s)) {
+          const ch = locked.get(s);
+          const fromGrid = pattern.fixed[s] && ch === grid;
+          const sure = fromGrid && pattern.fixed[s] === 'confirmed';
+          el = tileEl(`ana-tile locked ${fromGrid ? 'from-grid' : 'mine'}${sure ? ' sure' : ''}`, ch, { pos, slot: s });
+          if (grid && grid !== ch) el.classList.add('clash');
+          el.title = sure ? 'From a confirmed answer – press and hold to unlock' : fromGrid ? 'From a finished crossing answer – press and hold to unlock' : 'Locked – press and hold to unlock';
+        } else if (place[s]) {
+          el = tileFor(place[s], pos);
+          el.dataset.slot = s;
+          if (grid && grid !== place[s].ch) el.classList.add('clash');
+        } else {
+          el = tileEl('ana-slot', grid, { pos, slot: s });
+          if (grid) el.classList.add('hint');
+          if (selected) el.classList.add('target');
+        }
+        group.appendChild(el);
+        groupLen++;
+        const br = breakAt.get(s + 1);
+        if (br || s === n - 1) {
+          if (br === 'hyphen') { const h = document.createElement('span'); h.className = 'ana-sep'; h.textContent = '-'; group.appendChild(h); }
+          ans.appendChild(group); lens.push(groupLen); group = null;
+        }
       }
-      group.appendChild(el);
-      groupLen++;
-      const br = breakAt.get(s + 1);
-      if (br || s === n - 1) {
-        if (br === 'hyphen') { const h = document.createElement('span'); h.className = 'ana-sep'; h.textContent = '-'; group.appendChild(h); }
-        groups.push(group); lens.push(groupLen); group = null;
-      }
+      board.appendChild(ans);
     }
-    const ans = document.createElement('div');
-    ans.className = 'ana-answer';
-    groups.forEach(g => ans.appendChild(g));
-    board.appendChild(ans);
 
-    // letters that don't fit in the answer
-    const spare = tiles.slice(free.length);
-    if (spare.length) {
+    // letters not on the answer (also where you can drag a tile to take it off)
+    if (spare.length || !pattern || dragging || (selected && selected.startsWith('s:'))) {
       const wrap = document.createElement('div');
-      wrap.className = 'ana-spare';
-      wrap.innerHTML = `<span class="ana-spare-label">${spare.length} extra</span>`;
-      spare.forEach((t, j) => {
-        const el = tileEl('ana-tile spare', t.ch, { id: t.id, index: free.length + j });
-        if (selected === t.id) el.classList.add('selected');
-        wrap.appendChild(el);
-      });
+      wrap.className = 'ana-spare' + (pattern ? '' : ' alone');
+      if (pattern) wrap.innerHTML = `<span class="ana-spare-label${spare.length ? '' : ' quiet'}">${spare.length ? 'Not placed' : 'Drop here to take a letter off'}</span>`;
+      spare.forEach((t, j) => wrap.appendChild(tileFor(t, `x:${j}`, ' spare')));
+      if (pattern) wrap.appendChild(tileEl('ana-slot drop', '', { pos: 'x:end' }));
+      if (!pattern && !spare.length) wrap.innerHTML = '<span class="ana-empty">Your tiles will appear here</span>';
       board.appendChild(wrap);
     }
 
-    lockHint.hidden = !pattern.fixed.some(Boolean);
-    sizeTiles(lens);
+    lockHint.hidden = !pattern?.fixed.some(Boolean);
+    sizeTiles(pattern ? lens : [Math.min(Math.max(1, spare.length), 10)]);
     updateFill();
   }
 
@@ -183,11 +189,10 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
     const w = board.clientWidth - 24; // board padding
     if (w <= 0) return;
     const longest = Math.max(...lens, 1);
-    // tile size plus a gap of ~12% of it must fit the longest word on one line
     const fit = Math.floor((w - 2) / (longest + (longest - 1) * 0.12));
     // shrink long words a little, but not below a comfortable size for dragging;
     // past that, a very long word is allowed to wrap onto a second line
-    const MIN = 28;
+    const MIN = 26;
     const size = Math.max(MIN, Math.min(46, fit));
     board.classList.toggle('wrap-words', fit < MIN);
     board.style.setProperty('--tile', `${size}px`);
@@ -196,27 +201,34 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
   new ResizeObserver(() => sizeTiles(lastLens)).observe(board);
 
   function answerLetters() {
-    const free = freeSlots();
-    if (!pattern || tiles.length !== free.length) return null;
-    return pattern.letters.map((ch, s) => (locked.has(s) ? locked.get(s) : tiles[free.indexOf(s)].ch));
+    if (!pattern || spare.length) return null;
+    const out = pattern.letters.map((_, s) => (locked.has(s) ? locked.get(s) : place[s]?.ch));
+    return out.every(Boolean) ? out : null;
   }
 
   function updateFill() {
     const btn = root.querySelector('.ana-fill');
     btn.hidden = !pattern;
     if (!pattern) { countEl.textContent = ''; return; }
-    const need = freeSlots().length;
-    const have = tiles.length;
+    const empty = freeSlots().filter(s => !place[s]).length;
     const letters = answerLetters();
     btn.disabled = !letters;
-    btn.title = letters ? `Put ${letters.join('')} into ${pattern.label}` : `Needs ${need} more letter${need === 1 ? '' : 's'} to fill the gaps`;
-    countEl.textContent = have === need ? '' : have < need ? `${need - have} to place` : `${have - need} too many`;
-    countEl.classList.toggle('over', have > need);
+    btn.title = letters ? `Put ${letters.join('')} into ${pattern.label}`
+      : spare.length ? 'Place or remove the letters that are not on the answer yet'
+      : `${empty} square${empty === 1 ? '' : 's'} still empty`;
+    const parts = [];
+    if (empty) parts.push(`${empty} empty`);
+    if (spare.length) parts.push(`${spare.length} not placed`);
+    countEl.textContent = parts.join(' · ');
+    countEl.classList.toggle('over', spare.length > 0 && empty === 0);
   }
 
+  // Shuffle the letters among the squares they're in (gaps and locked letters stay put).
   function shuffle() {
-    if (tiles.length < 2) return;
-    const before = tiles.map(t => t.ch).join('');
+    const spots = freeSlots().filter(s => place[s]);
+    if (spots.length < 2) return;
+    const before = spots.map(s => place[s].ch).join('');
+    const tiles = spots.map(s => place[s]);
     for (let tries = 0; tries < 10; tries++) {
       for (let i = tiles.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -224,9 +236,23 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
       }
       if (tiles.map(t => t.ch).join('') !== before) break;
     }
+    spots.forEach((s, i) => { place[s] = tiles[i]; });
     selected = null;
     render();
     board.classList.remove('shuffled'); void board.offsetWidth; board.classList.add('shuffled');
+  }
+
+  // Put everything back in order from the first square, leaving no gaps.
+  function resetOrder() {
+    const tiles = allTiles();
+    place = Array.from({ length: N() }, () => null);
+    spare = [];
+    for (const t of tiles) {
+      const s = freeSlots().find(i => !place[i]);
+      if (s != null) place[s] = t; else spare.push(t);
+    }
+    selected = null;
+    render();
   }
 
   // ---------- buttons, input, clue words ----------
@@ -234,15 +260,15 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'fill') { const l = answerLetters(); if (l) onFill?.(l); }
     if (act === 'shuffle') shuffle();
-    if (act === 'reset') { tiles = []; setFromInput(); }
+    if (act === 'reset') resetOrder();
     if (act === 'clear') {
-      input.value = ''; tiles = []; selected = null;
+      input.value = ''; place = []; spare = []; selected = null;
       for (const [s, ch] of [...locked]) if (!(pattern?.fixed[s] && pattern.letters[s] === ch)) locked.delete(s);
       clueTextEl.querySelectorAll('.ana-word.on').forEach(w => w.classList.remove('on'));
-      render();
+      setFromInput();
     }
   });
-  input.addEventListener('input', setFromInput);
+  input.addEventListener('input', () => setFromInput());
 
   clueTextEl.addEventListener('click', e => {
     const w = e.target.closest('.ana-word');
@@ -262,26 +288,33 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
   });
 
   // ---------- drag, tap-to-swap, press-and-hold ----------
-  let drag = null;
-  const targetAt = (x, y) => [...board.querySelectorAll('[data-index]')].find(t => {
+  const posAt = (x, y) => [...board.querySelectorAll('[data-pos]')].find(t => {
+    if (t.classList.contains('locked')) return false;
     const r = t.getBoundingClientRect();
     return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
   });
+  const posOfTile = id => {
+    const s = place.findIndex(t => t?.id === id);
+    if (s >= 0) return `s:${s}`;
+    const j = spare.findIndex(t => t.id === id);
+    return j >= 0 ? `x:${j}` : null;
+  };
 
   board.addEventListener('contextmenu', e => e.preventDefault());
   board.addEventListener('pointerdown', e => {
-    const el = e.target.closest('.ana-tile, .ana-slot');
+    const el = e.target.closest('[data-pos]');
     if (!el) return;
     e.preventDefault();
     const slot = el.dataset.slot != null ? +el.dataset.slot : null;
     const rect = el.getBoundingClientRect();
     drag = {
-      el, slot, pointerId: e.pointerId,
+      el, pos: el.dataset.pos, slot, pointerId: e.pointerId,
       id: el.dataset.id ? +el.dataset.id : null,
       startX: e.clientX, startY: e.clientY, dx: e.clientX - rect.left, dy: e.clientY - rect.top,
       moved: false, ghost: null, held: false, timer: null,
     };
-    if (slot != null && pattern && (locked.has(slot) || drag.id != null)) {
+    // press and hold a letter on the answer to lock / unlock it
+    if (slot != null && (locked.has(slot) || drag.id != null)) {
       el.classList.add('pressing');
       drag.timer = setTimeout(() => {
         if (!drag || drag.moved) return;
@@ -295,32 +328,30 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
   board.addEventListener('pointermove', e => {
     if (!drag || e.pointerId !== drag.pointerId || drag.held) return;
     if (!drag.moved && Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < 6) return;
-    if (drag.id == null) return; // locked tiles and empty slots don't move
+    if (drag.id == null) return; // locked letters and empty squares don't move
     if (!drag.moved) {
       drag.moved = true;
       clearTimeout(drag.timer);
       drag.el.classList.remove('pressing');
       selected = null;
+      dragging = true;
+      dragId = drag.id;
       const g = drag.el.cloneNode(true);
       g.className = 'ana-tile ghost';
       g.style.setProperty('--tile', getComputedStyle(board).getPropertyValue('--tile'));
       document.body.appendChild(g);
       drag.ghost = g;
       render();
-      board.querySelector(`[data-id="${drag.id}"]`)?.classList.add('placeholder');
     }
     drag.ghost.style.left = `${e.clientX - drag.dx}px`;
     drag.ghost.style.top = `${e.clientY - drag.dy}px`;
-    const under = targetAt(e.clientX, e.clientY);
-    if (under && +under.dataset.id !== drag.id) {
-      const from = tiles.findIndex(t => t.id === drag.id);
-      const to = Math.min(+under.dataset.index, tiles.length - 1);
-      if (from !== to) {
-        const [t] = tiles.splice(from, 1);
-        tiles.splice(to, 0, t);
-        render();
-        board.querySelector(`[data-id="${drag.id}"]`)?.classList.add('placeholder');
-      }
+    // moving over a square swaps the dragged tile into it; passing over several
+    // tiles slides them along, and an empty square just takes the tile
+    const under = posAt(e.clientX, e.clientY);
+    const from = posOfTile(drag.id);
+    if (under && from && under.dataset.pos !== from && +under.dataset.id !== drag.id) {
+      swap(from, under.dataset.pos);
+      render();
     }
   });
 
@@ -328,31 +359,19 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
     if (!drag || e.pointerId !== drag.pointerId) return;
     clearTimeout(drag.timer);
     drag.el.classList.remove('pressing');
-    if (!drag.moved && !drag.held) {
-      if (drag.id != null) {
-        // tap a tile: select, or swap with the selected one
-        if (selected == null) selected = drag.id;
-        else if (selected === drag.id) selected = null;
-        else {
-          const a = tiles.findIndex(t => t.id === selected);
-          const b = tiles.findIndex(t => t.id === drag.id);
-          [tiles[a], tiles[b]] = [tiles[b], tiles[a]];
-          selected = null;
-        }
-      } else if (drag.el.classList.contains('ana-slot') && selected != null) {
-        // tap an empty square: move the selected tile there
-        const from = tiles.findIndex(t => t.id === selected);
-        const [t] = tiles.splice(from, 1);
-        tiles.splice(Math.min(+drag.el.dataset.index, tiles.length), 0, t);
-        selected = null;
-      } else if (drag.el.classList.contains('locked')) {
-        drag.el.classList.remove('nudge'); void drag.el.offsetWidth; drag.el.classList.add('nudge');
-        drag.ghost?.remove(); drag = null;
+    const d = drag;
+    d.ghost?.remove();
+    drag = null; dragId = null; dragging = false;
+    if (!d.moved && !d.held) {
+      if (d.el.classList.contains('locked')) {
+        d.el.classList.remove('nudge'); void d.el.offsetWidth; d.el.classList.add('nudge');
         return;
       }
+      // tap: pick a tile, then tap another tile or an empty square to swap / move it there
+      if (selected == null) { if (d.id != null) selected = d.pos; }
+      else if (selected === d.pos) selected = null;
+      else { swap(selected, d.pos); selected = null; }
     }
-    drag.ghost?.remove();
-    drag = null;
     render();
   };
   board.addEventListener('pointerup', endDrag);
@@ -369,7 +388,7 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
       if (key !== lastClueKey) {
         // a different clue: start fresh
         lastClueKey = key;
-        input.value = ''; tiles = []; selected = null;
+        input.value = ''; place = []; spare = []; selected = null;
         clueEl.hidden = !p?.clue;
         clueTextEl.innerHTML = '';
         for (const part of (p?.clue || '').split(/(\s+)/)) {
@@ -397,7 +416,8 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
       locked = new Map();
       if (p) p.fixed.forEach((f, s) => { if (f) locked.set(s, p.letters[s]); });
       for (const [s, ch] of mine) if (!locked.has(s) && s < p.letters.length) locked.set(s, ch);
-      boardLabel.textContent = p ? `${p.label}${p.enumText ? ` (${p.enumText})` : ''}` : '';
+      if (!p) { spare = [...place.filter(Boolean), ...spare]; place = []; }
+      boardLabel.textContent = p ? p.label : '';
       setFromInput();
       // on phones, don't pop up the keyboard straight away; the clue words are the quicker way in
       if (!matchMedia('(pointer: coarse)').matches && !p?.clue) setTimeout(() => input.focus(), 50);

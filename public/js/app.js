@@ -1,5 +1,5 @@
 import { parseIpuz, clueHtml, parseEnumeration, editGrid } from './ipuz.js';
-import { local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, filledCount } from './store.js';
+import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, filledCount } from './store.js';
 import { createAnagrammer } from './anagram.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -70,23 +70,30 @@ $('#lib-list').addEventListener('click', e => {
   if (open) location.hash = `#/p/${open.dataset.id}`;
 });
 
+// Add one ipuz text to the library. Returns { id, title, isNew }.
+async function importRaw(raw) {
+  const model = parseIpuz(raw);
+  const id = await puzzleId(raw);
+  if (local.getPuzzle(id)) return { id, title: model.title, isNew: false };
+  const meta = { title: model.title, author: model.author, width: model.width, height: model.height, cells: openCellCount(model), added: Date.now() };
+  local.putPuzzle(id, { raw, meta, added: meta.added });
+  // seed progress from any state saved in the file / pre-filled cells
+  const cells = {};
+  model.cells.forEach((c, i) => { if (c.given) cells[i] = { v: c.given, t: 1 }; });
+  for (const [i, v] of Object.entries(model.saved)) if (!cells[i]) cells[i] = { v, t: 1 };
+  local.putProgress(id, { cells, updatedAt: 0, total: meta.cells });
+  uploadPuzzle(id, { raw, meta });
+  return { id, title: model.title, isNew: true };
+}
+
 async function importFiles(files) {
   let lastId = null, added = 0;
   for (const file of files) {
     try {
-      const raw = await file.text();
-      const model = parseIpuz(raw);
-      const id = await puzzleId(raw);
-      if (local.getPuzzle(id)) { toast(`"${model.title}" is already in your library`); lastId = id; continue; }
-      const meta = { title: model.title, author: model.author, width: model.width, height: model.height, cells: openCellCount(model), added: Date.now() };
-      local.putPuzzle(id, { raw, meta, added: meta.added });
-      // seed progress from any state saved in the file / pre-filled cells
-      const cells = {};
-      model.cells.forEach((c, i) => { if (c.given) cells[i] = { v: c.given, t: 1 }; });
-      for (const [i, v] of Object.entries(model.saved)) if (!cells[i]) cells[i] = { v, t: 1 };
-      local.putProgress(id, { cells, updatedAt: 0, total: meta.cells });
-      uploadPuzzle(id, { raw, meta });
-      lastId = id; added++;
+      const r = await importRaw(await file.text());
+      if (!r.isNew) toast(`"${r.title}" is already in your library`);
+      lastId = r.id;
+      if (r.isNew) added++;
     } catch (err) {
       toast(`${file.name}: ${err.message}`, 5000);
     }
@@ -94,6 +101,23 @@ async function importFiles(files) {
   renderLibrary();
   if (files.length === 1 && lastId) location.hash = `#/p/${lastId}`;
   else if (added) toast(`Imported ${added} puzzle${added > 1 ? 's' : ''}`);
+}
+
+// Opening a share link: add the puzzle to this device's library, then open it.
+async function openShareLink(sid) {
+  showView('library');
+  renderLibrary();
+  toast('Loading shared puzzle…', 10000);
+  try {
+    const raw = await fetchShare(sid);
+    const r = await importRaw(raw);
+    renderLibrary();
+    location.replace(`#/p/${r.id}`);
+    toast(r.isNew ? `Added "${r.title}" to your puzzles` : `"${r.title}" is already in your library`);
+  } catch (e) {
+    location.replace('#');
+    toast(`Couldn't open that link: ${e.message}`, 6000);
+  }
 }
 
 $('#file-input').addEventListener('change', e => { importFiles([...e.target.files]); e.target.value = ''; });
@@ -579,6 +603,8 @@ $('#view-solver').addEventListener('click', e => {
     openAnagram();
   } else if (act === 'library') {
     location.hash = '';
+  } else if (act === 'share') {
+    sharePuzzle();
   } else if (act === 'edit-grid') {
     startEditGrid();
   } else if (act === 'edit-cancel') {
@@ -589,6 +615,37 @@ $('#view-solver').addEventListener('click', e => {
     alert(model.notes);
   }
 });
+
+// ---- share link ----
+async function sharePuzzle() {
+  const rec = local.getPuzzle(cur.id);
+  if (!local.token()) { toast('Turn on sync in Settings to create share links', 4000); return; }
+  toast('Creating link…');
+  try {
+    const { sid } = await createShare(cur.id, rec.raw, rec.meta?.title);
+    const url = `${location.origin}/#/s/${sid}`;
+    $('#share-url').value = url;
+    $('#share-title').textContent = `"${rec.meta?.title || 'this puzzle'}"`;
+    $('#btn-share-native').hidden = !navigator.share;
+    $('#btn-share-copy').textContent = 'Copy';
+    $('#toast').classList.remove('show');
+    $('#dlg-share').showModal();
+  } catch (e) {
+    toast(`Couldn't create link: ${e.message}`, 5000);
+  }
+}
+$('#btn-share-copy').addEventListener('click', async () => {
+  const inp = $('#share-url');
+  try { await navigator.clipboard.writeText(inp.value); }
+  catch { inp.select(); document.execCommand('copy'); }
+  $('#btn-share-copy').textContent = 'Copied ✓';
+});
+$('#btn-share-native').addEventListener('click', () => {
+  const title = $('#share-title').textContent.replace(/"/g, '');
+  navigator.share({ title, text: `Have a go at this crossword: ${title}`, url: $('#share-url').value }).catch(() => {});
+});
+$('#btn-share-close').addEventListener('click', () => $('#dlg-share').close());
+$('#share-url').addEventListener('focus', e => e.target.select());
 
 // ---- grid editing (fix black/white squares) ----
 function startEditGrid() {
@@ -763,6 +820,8 @@ function showView(name) {
 }
 
 function route() {
+  const share = location.hash.match(/^#\/s\/([A-Za-z0-9_-]+)/);
+  if (share) { closePuzzle(); openShareLink(share[1]); return; }
   const m = location.hash.match(/^#\/p\/([a-f0-9]+)/);
   if (m) { if (cur?.id !== m[1]) { closePuzzle(); openPuzzle(m[1]); } }
   else { closePuzzle(); renderLibrary(); showView('library'); }

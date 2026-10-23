@@ -184,3 +184,16 @@ export async function uploadPuzzle(id, rec) {
   try { await api('puzzles', { method: 'POST', body: JSON.stringify({ id, raw: rec.raw, meta: rec.meta }) }); }
   catch (e) { reportError(e); }
 }
+
+// ---------- share links ----------
+export async function createShare(id, raw, title) {
+  if (!local.token()) throw new Error('Turn on sync (Settings) to create share links');
+  return api('share', { method: 'POST', body: JSON.stringify({ id, raw, title }) });
+}
+export async function fetchShare(sid) {
+  const res = await fetch(`/api/share/${encodeURIComponent(sid)}`);
+  let body = {};
+  try { body = await res.json(); } catch {}
+  if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+  return body.raw;
+}

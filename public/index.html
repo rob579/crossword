@@ -52,6 +52,7 @@
           <button type="button" class="tool" id="puz-notes" data-act="notes" hidden title="Notes">ⓘ</button>
           <button type="button" class="tool" data-act="anagram" title="Anagrammer">Aa<span class="tool-label"> Anagram</span></button>
           <button type="button" class="tool only-narrow" data-act="clues">Clues</button>
+          <button type="button" class="tool only-wide" data-act="share" title="Share this puzzle">⤴<span class="tool-label"> Share</span></button>
           <button type="button" class="tool only-wide" data-act="edit-grid" title="Fix black/white squares">✎<span class="tool-label"> Edit grid</span></button>
           <details class="menu only-wide">
             <summary class="tool">Check</summary>
@@ -91,7 +92,8 @@
               <span class="menu-heading">Clear</span>
               <button type="button" data-act="clear:word">Clear word</button>
               <button type="button" data-act="clear:all">Clear puzzle</button>
-              <span class="menu-heading">Grid</span>
+              <span class="menu-heading">Puzzle</span>
+              <button type="button" data-act="share">Share link…</button>
               <button type="button" data-act="edit-grid">Edit grid…</button>
             </div>
           </details>
@@ -136,6 +138,22 @@
       <button type="button" class="icon-btn" id="btn-anagram-close" aria-label="Close">✕</button>
     </div>
     <div id="anagram-body" class="anagram"></div>
+  </dialog>
+
+  <!-- Share -->
+  <dialog id="dlg-share" class="sheet">
+    <div class="dlg-head">
+      <h2>Share puzzle</h2>
+      <button type="button" class="icon-btn" id="btn-share-close" aria-label="Close">✕</button>
+    </div>
+    <p class="muted">Anyone with this link can add <strong id="share-title"></strong> to their own library and solve it. They get a blank copy – your answers stay private.</p>
+    <div class="field-row">
+      <input id="share-url" type="text" readonly>
+      <button type="button" class="btn" id="btn-share-copy">Copy</button>
+    </div>
+    <div class="dlg-actions">
+      <button type="button" class="btn primary" id="btn-share-native" hidden>Share…</button>
+    </div>
   </dialog>
 
   <!-- Settings -->

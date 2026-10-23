@@ -213,6 +213,14 @@
         <input type="checkbox" id="pref-skip">
         <span><strong>Skip filled squares</strong><br><span class="muted">When typing, jump over letters you've already filled in the current word.</span></span>
       </label>
+      <div class="setting-block">
+        <span class="field-label">Keyboard position <span class="muted">(tablets in landscape)</span></span>
+        <div class="seg" role="radiogroup" aria-label="Keyboard position">
+          <label><input type="radio" name="kbpos" value="grid"><span>Under the grid</span></label>
+          <label><input type="radio" name="kbpos" value="clues"><span>Under the clues</span></label>
+        </div>
+      </div>
+
       <h3 class="settings-heading">Sync across devices</h3>
       <p class="muted">Enter the sync key you set as <code>SYNC_TOKEN</code> in Cloudflare. Use the same key on each device and your puzzles and progress follow you. Without it, everything is saved on this device only.</p>
       <label for="token-input" class="field-label">Sync key</label>

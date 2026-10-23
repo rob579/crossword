@@ -1006,8 +1006,18 @@ $('#btn-colours-reset').addEventListener('click', () => {
   syncAppearanceUI();
 });
 
+// keyboard position on wide touch screens
+const kbPos = () => { try { return localStorage.getItem('cw.kbPos') || 'grid'; } catch { return 'grid'; } };
+function applyKbPos() { document.body.classList.toggle('kb-clues', kbPos() === 'clues'); }
+applyKbPos();
+for (const r of $$('input[name="kbpos"]')) r.addEventListener('change', () => {
+  try { localStorage.setItem('cw.kbPos', r.value); } catch {}
+  applyKbPos();
+});
+
 function openSettings() {
   syncAppearanceUI();
+  for (const r of $$('input[name="kbpos"]')) r.checked = r.value === kbPos();
   $('#token-input').value = local.token();
   $('#settings-msg').textContent = '';
   $('#btn-sync-off').hidden = !local.token();

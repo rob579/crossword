@@ -421,3 +421,9 @@ body.editing .cluebar { display: none; }
 .grid.editing .cell.flip:not(.block) { background: var(--block); }
 .grid.editing .cell.flip:not(.block) .ltr, .grid.editing .cell.flip:not(.block) .num { visibility: hidden; }
 @media (max-width: 899.98px) { .edit-bar { margin: 8px 8px 0; } }
+
+/* anagrammer: answer preview + fill */
+.ana-slot.preview { border-color: var(--accent); color: var(--accent); }
+.ana-slot.clash { border-color: var(--wrong); color: var(--wrong); background: color-mix(in srgb, var(--wrong) 12%, var(--paper)); }
+.ana-fill { margin-left: auto; }
+.ana-fill:disabled { opacity: .4; cursor: default; }

@@ -1,7 +1,7 @@
 // Anagrammer: type letters, then rearrange the tiles by dragging,
 // tapping two tiles to swap them, or shuffling.
 
-export function createAnagrammer(root, { getPattern } = {}) {
+export function createAnagrammer(root, { getPattern, onFill } = {}) {
   root.innerHTML = `
     <div class="ana-pattern" hidden></div>
     <label class="ana-label" for="ana-input">Letters</label>
@@ -12,6 +12,7 @@ export function createAnagrammer(root, { getPattern } = {}) {
       <button type="button" class="btn" data-act="shuffle">⤮ Shuffle</button>
       <button type="button" class="btn" data-act="reset">↺ Reset order</button>
       <button type="button" class="btn ghost" data-act="clear">Clear</button>
+      <button type="button" class="btn primary ana-fill" data-act="fill" disabled>Fill in answer</button>
     </div>
     <p class="ana-hint">Drag tiles to move them, or tap two tiles to swap.</p>`;
 
@@ -21,6 +22,7 @@ export function createAnagrammer(root, { getPattern } = {}) {
   let tiles = []; // [{ id, ch }]
   let nextId = 1;
   let selected = null;
+  let pattern = null; // { label, letters } for the current answer, captured when opened
 
   const lettersOf = s => s.toUpperCase().replace(/[^A-Z]/g, '').split('');
 
@@ -40,7 +42,26 @@ export function createAnagrammer(root, { getPattern } = {}) {
     render();
   }
 
+  function updateFill() {
+    const btn = root.querySelector('.ana-fill');
+    const need = pattern?.letters.length || 0;
+    btn.hidden = !pattern;
+    if (!pattern) return;
+    btn.disabled = !need || tiles.length !== need;
+    btn.title = !need ? '' : tiles.length === need ? `Put ${tiles.map(t => t.ch).join('')} into ${pattern.label}` : `Needs exactly ${need} letters (you have ${tiles.length})`;
+    // preview the arrangement in the answer pattern; flag clashes with letters already in the grid
+    root.querySelectorAll('.ana-slot').forEach((el, i) => {
+      const known = pattern.letters[i];
+      const mine = tiles.length === need ? tiles[i]?.ch : '';
+      el.textContent = mine || known || '';
+      el.classList.toggle('known', !!known && !mine);
+      el.classList.toggle('preview', !!mine);
+      el.classList.toggle('clash', !!mine && !!known && mine !== known);
+    });
+  }
+
   function render() {
+    updateFillLater();
     tilesEl.innerHTML = '';
     if (!tiles.length) {
       tilesEl.innerHTML = '<span class="ana-empty">Your tiles will appear here</span>';
@@ -71,8 +92,11 @@ export function createAnagrammer(root, { getPattern } = {}) {
     tilesEl.classList.remove('shuffled'); void tilesEl.offsetWidth; tilesEl.classList.add('shuffled');
   }
 
+  function updateFillLater() { queueMicrotask(updateFill); }
+
   root.addEventListener('click', e => {
     const act = e.target.closest('[data-act]')?.dataset.act;
+    if (act === 'fill' && pattern && tiles.length === pattern.letters.length) onFill?.(tiles.map(t => t.ch));
     if (act === 'shuffle') shuffle();
     if (act === 'reset') { tiles = []; setFromInput(); }
     if (act === 'clear') { input.value = ''; tiles = []; render(); input.focus(); }
@@ -143,11 +167,13 @@ export function createAnagrammer(root, { getPattern } = {}) {
   return {
     open() {
       const p = getPattern?.();
+      pattern = p || null;
       if (p) {
         patternEl.hidden = false;
         patternEl.innerHTML = `<span class="ana-pattern-label">${p.label}</span>` +
           p.letters.map(ch => `<span class="ana-slot${ch ? ' known' : ''}">${ch || ''}</span>`).join('');
       } else patternEl.hidden = true;
+      updateFill();
       setTimeout(() => input.focus(), 50);
     },
   };

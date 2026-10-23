@@ -648,6 +648,16 @@ const anagram = createAnagrammer($('#anagram-body'), {
     const cells = activeWordCells();
     return { label: `${cl.number} ${cl.dir === 'across' ? 'Across' : 'Down'}`, letters: cells.map(i => valueAt(i)) };
   },
+  onFill(letters) {
+    if (!cur) return;
+    const cells = activeWordCells();
+    if (letters.length !== cells.length) return;
+    setCells(cells.map((i, k) => [i, letters[k]]));
+    checkComplete(true);
+    update();
+    $('#dlg-anagram').close();
+    toast(`Filled in ${letters.join('')}`);
+  },
 });
 function openAnagram() { $('#dlg-anagram').showModal(); anagram.open(); }
 $('#btn-anagram-close').addEventListener('click', () => $('#dlg-anagram').close());

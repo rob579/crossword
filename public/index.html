@@ -132,9 +132,15 @@
   <dialog id="dlg-settings" class="sheet">
     <form id="settings-form">
       <div class="dlg-head">
-        <h2>Sync across devices</h2>
+        <h2>Settings</h2>
         <button type="button" class="icon-btn" id="btn-settings-close" aria-label="Close">✕</button>
       </div>
+      <h3 class="settings-heading">Solving</h3>
+      <label class="toggle-row">
+        <input type="checkbox" id="pref-skip">
+        <span><strong>Skip filled squares</strong><br><span class="muted">When typing, jump over letters you've already filled in the current word.</span></span>
+      </label>
+      <h3 class="settings-heading">Sync across devices</h3>
       <p class="muted">Enter the sync key you set as <code>SYNC_TOKEN</code> in Cloudflare. Use the same key on each device and your puzzles and progress follow you. Without it, everything is saved on this device only.</p>
       <label for="token-input" class="field-label">Sync key</label>
       <div class="field-row">

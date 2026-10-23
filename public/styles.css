@@ -390,3 +390,9 @@ dialog.sheet::backdrop { background: rgba(0,0,0,.35); }
   font-size: 14px; box-shadow: var(--shadow); transition: all .2s ease; max-width: calc(100% - 32px);
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* settings */
+.settings-heading { margin: 16px 0 6px; font: 700 12px var(--font); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.toggle-row { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); cursor: pointer; line-height: 1.35; }
+.toggle-row input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--accent); flex: none; }
+.toggle-row .muted { font-size: 13px; }

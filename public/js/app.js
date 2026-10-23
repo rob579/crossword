@@ -218,13 +218,16 @@ function buildClues() {
       const li = document.createElement('li');
       li.className = 'clue';
       li.dataset.clue = cl.id;
-      const enumTxt = cl.enumeration && !cl.text.includes(`(${cl.enumeration})`) ? ` <span class="enum">(${clueHtml(cl.enumeration)})</span>` : '';
+      const enumTxt = cl.enumeration && !hasEnum(cl.text) ? ` <span class="enum">(${clueHtml(cl.enumeration)})</span>` : '';
       li.innerHTML = `<span class="clue-num">${clueHtml(cl.number)}</span><span class="clue-text">${clueHtml(cl.text) || '<em class="muted">—</em>'}${enumTxt}</span>`;
       if (!cl.entryIds.length) li.classList.add('orphan');
       ol.appendChild(li);
     }
   }
 }
+
+// True if the clue text already ends with a length such as (5), (3,4), (2-5) or (4 words)
+const hasEnum = text => /\(\s*\d+(?:\s*[-,.\s/]\s*\d+)*(?:\s*words?)?\s*\)\s*$/i.test(String(text).replace(/<[^>]*>/g, '').trim());
 
 const clueById = id => [...cur.model.clues.across, ...cur.model.clues.down].find(c => c.id === id);
 const entryAt = (cell, dir) => cur.model.entries[cur.model.cellEntries[cell]?.[dir]] || null;
@@ -269,7 +272,8 @@ function update() {
     const len = activeWordCells().length;
     const enumTxt = cl.enumeration ? cl.enumeration : len;
     $('#cluebar-num').textContent = `${cl.number}${cl.dir === 'across' ? 'A' : 'D'}`;
-    $('#cluebar-text').innerHTML = `${clueHtml(cl.text) || '<em class="muted">No clue</em>'} <span class="enum">(${clueHtml(String(enumTxt))})</span>`;
+    const showEnum = !hasEnum(cl.text);
+    $('#cluebar-text').innerHTML = `${clueHtml(cl.text) || '<em class="muted">No clue</em>'}${showEnum ? ` <span class="enum">(${clueHtml(String(enumTxt))})</span>` : ''}`;
   } else {
     $('#cluebar-num').textContent = '';
     $('#cluebar-text').textContent = '';
@@ -381,13 +385,27 @@ function nextClue(step) {
 }
 const allFilled = () => cur.model.cells.every((c, i) => c.block || c.void || valueAt(i));
 
+const prefs = {
+  get skipFilled() { return localStorage.getItem('cw.skipFilled') === '1'; },
+  set skipFilled(v) { localStorage.setItem('cw.skipFilled', v ? '1' : '0'); },
+};
+
 function typeLetter(ch) {
+  const e = entryAt(cur.sel.cell, cur.sel.dir);
+  // "skip filled" only applies while the word still has gaps; when overwriting a
+  // complete word, step through it one square at a time as usual.
+  const wordHadGaps = e && e.cells.some(i => i !== cur.sel.cell && !valueAt(i));
   setCells([[cur.sel.cell, ch]]);
   checkComplete(true);
-  const e = entryAt(cur.sel.cell, cur.sel.dir);
   if (!e) return update();
   const k = e.cells.indexOf(cur.sel.cell);
-  if (k < e.cells.length - 1) { cur.sel.cell = e.cells[k + 1]; update(); }
+  if (prefs.skipFilled && wordHadGaps) {
+    // next empty square after this one, wrapping round to the start of the word
+    const order = [...e.cells.slice(k + 1), ...e.cells.slice(0, k)];
+    const next = order.find(i => !valueAt(i));
+    if (next != null) { cur.sel.cell = next; update(); return; }
+  }
+  if (k < e.cells.length - 1 && !(prefs.skipFilled && wordHadGaps)) { cur.sel.cell = e.cells[k + 1]; update(); }
   else if (!allFilled()) nextClue(1);
   else update();
 }
@@ -565,9 +583,11 @@ function openSettings() {
   $('#token-input').value = local.token();
   $('#settings-msg').textContent = '';
   $('#btn-sync-off').hidden = !local.token();
+  $('#pref-skip').checked = prefs.skipFilled;
   $('#dlg-settings').showModal();
 }
 $('#btn-settings').addEventListener('click', openSettings);
+$('#pref-skip').addEventListener('change', e => { prefs.skipFilled = e.target.checked; });
 $('#sync-pill').addEventListener('click', () => {
   const st = $('#sync-pill').dataset.state;
   if (st === 'off' || st === 'error') openSettings();

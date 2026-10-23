@@ -528,14 +528,29 @@ function typeLetter(ch) {
   else update();
 }
 
+// A letter belongs to a confirmed answer (across or down) — Backspace steps over it
+// unless you picked that square yourself (tapped it or moved to it with the arrows).
+function isProtected(i) {
+  if (!valueAt(i)) return false;
+  return ['across', 'down'].some(d => {
+    const eid = cur.model.cellEntries[i]?.[d];
+    const cl = eid && cur.entryClue[eid];
+    return !!cl && isConfirmed(cl.id);
+  });
+}
+const pickedHere = () => cur.picked === cur.sel.cell;
+const canDelete = i => !isProtected(i) || (i === cur.sel.cell && pickedHere());
+
 function backspace() {
   const i = cur.sel.cell;
-  if (valueAt(i)) { setCells([[i, '']]); update(); return; }
+  if (valueAt(i) && canDelete(i)) { setCells([[i, '']]); update(); return; }
   const e = entryAt(i, cur.sel.dir);
   if (!e) return;
-  const k = e.cells.indexOf(i);
-  if (k > 0) {
-    cur.sel.cell = e.cells[k - 1];
+  // step back through the word, skipping letters from confirmed answers
+  let k = e.cells.indexOf(i) - 1;
+  while (k >= 0 && isProtected(e.cells[k])) k--;
+  if (k >= 0) {
+    cur.sel.cell = e.cells[k];
     if (valueAt(cur.sel.cell)) setCells([[cur.sel.cell, '']]);
     update();
   }
@@ -550,7 +565,7 @@ function arrow(dr, dc) {
     r += dr; c += dc;
     if (r < 0 || c < 0 || r >= height || c >= width) return;
     const cell = cells[r * width + c];
-    if (!cell.block && !cell.void) { selectCell(r * width + c); return; }
+    if (!cell.block && !cell.void) { selectCell(r * width + c); cur.picked = r * width + c; return; }
   }
 }
 
@@ -567,6 +582,7 @@ $('#grid').addEventListener('click', e => {
   }
   if (i === cur.sel.cell) toggleDir();
   else selectCell(i);
+  cur.picked = i;
 });
 
 $('#clue-panel').addEventListener('click', e => {
@@ -598,7 +614,7 @@ document.addEventListener('keydown', e => {
   const k = e.key;
   if (/^[a-zA-Z0-9]$/.test(k)) { e.preventDefault(); typeLetter(k.toUpperCase()); }
   else if (k === 'Backspace') { e.preventDefault(); backspace(); }
-  else if (k === 'Delete') { e.preventDefault(); setCells([[cur.sel.cell, '']]); update(); }
+  else if (k === 'Delete') { e.preventDefault(); if (canDelete(cur.sel.cell)) { setCells([[cur.sel.cell, '']]); update(); } }
   else if (k === 'ArrowLeft') { e.preventDefault(); arrow(0, -1); }
   else if (k === 'ArrowRight') { e.preventDefault(); arrow(0, 1); }
   else if (k === 'ArrowUp') { e.preventDefault(); arrow(-1, 0); }

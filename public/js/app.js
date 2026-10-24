@@ -523,9 +523,20 @@ function typeLetter(ch) {
     const next = order.find(i => !valueAt(i));
     if (next != null) { cur.sel.cell = next; update(); return; }
   }
-  if (k < e.cells.length - 1 && !(prefs.skipFilled && wordHadGaps)) { cur.sel.cell = e.cells[k + 1]; update(); }
+  // step to the next square, skipping letters that belong to a confirmed crossing answer
+  let j = k + 1;
+  while (j < e.cells.length && crossConfirmed(e.cells[j], cur.sel.dir)) j++;
+  if (j < e.cells.length && !(prefs.skipFilled && wordHadGaps)) { cur.sel.cell = e.cells[j]; update(); }
   else if (!allFilled()) nextClue(1);
   else update();
+}
+
+// the square holds a letter from a confirmed answer running the other way
+function crossConfirmed(i, dir) {
+  if (!valueAt(i)) return false;
+  const eid = cur.model.cellEntries[i]?.[dir === 'across' ? 'down' : 'across'];
+  const cl = eid && cur.entryClue[eid];
+  return !!cl && isConfirmed(cl.id);
 }
 
 // A letter belongs to a confirmed answer (across or down) — Backspace steps over it

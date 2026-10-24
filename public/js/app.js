@@ -278,7 +278,13 @@ function markDoneClues() {
     li.classList.toggle('confirmed', !!cl && done && isConfirmed(cl.id));
   }
   if (unconfirm.length) setConfirmed(unconfirm, false);
-  void model;
+  // letters in a confirmed answer are shown full strength; other letters are slightly faded
+  const sure = new Set();
+  for (const cl of [...model.clues.across, ...model.clues.down]) {
+    if (isConfirmed(cl.id) && clueComplete(cl)) clueCells(cl).forEach(i => sure.add(i));
+  }
+  // revealed letters count as certain too
+  cur.cellEls.forEach((el, i) => el.classList.toggle('tentative', !!valueAt(i) && !sure.has(i) && cur.progress.cells[i]?.f !== 'r'));
 }
 
 const clueCells = cl => (cl ? cl.entryIds.flatMap(id => cur.model.entries[id]?.cells || []) : []);

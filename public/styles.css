@@ -592,3 +592,5 @@ body.focus .solver-toolbar { padding-top: max(6px, env(safe-area-inset-top)); }
 }
 .setting-block { margin-top: 10px; }
 .setting-block .field-label { margin: 0 0 6px; }
+.ana-board-head { gap: 12px; }
+.ana-count { text-align: right; }

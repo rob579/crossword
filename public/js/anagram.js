@@ -216,8 +216,29 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
     btn.disabled = !letters;
     btn.title = !letters ? 'Put some letters on the board first'
       : `Put ${letters.map(c => c || '·').join('')} into ${pattern.label}${empty ? ' (empty squares are left as they are)' : ''}`;
+    // Letters already in the grid (locked) that your loaded letters don't account for
+    // still have to come from somewhere, so count them as missing too.
+    const typed = lettersOf(input.value);
+    const take = ch => { const at = typed.indexOf(ch); if (at < 0) return false; typed.splice(at, 1); return true; };
+    const gridLocks = [];
+    for (const [s, ch] of locked) {
+      const fromGrid = pattern.fixed[s] && ch === pattern.letters[s];
+      if (!fromGrid) take(ch);                // letters you locked yourself came from your tiles
+      else gridLocks.push([s, ch]);
+    }
+    const uncovered = gridLocks.filter(([, ch]) => !take(ch));
+    const missing = empty + uncovered.length;
     const parts = [];
-    if (empty) parts.push(`${empty} empty`);
+    if (missing) {
+      let txt = `${missing} letter${missing === 1 ? '' : 's'} missing`;
+      if (uncovered.length) {
+        const chs = uncovered.map(([, ch]) => ch);
+        const list = chs.length === 1 ? chs[0] : `${chs.slice(0, -1).join(', ')} and ${chs[chs.length - 1]}`;
+        const allSure = uncovered.every(([s]) => pattern.fixed[s] === 'confirmed');
+        txt += allSure ? `, including the confirmed ${list}` : `, including the ${list} already in the grid`;
+      }
+      parts.push(txt);
+    }
     if (spare.length) parts.push(`${spare.length} not placed`);
     countEl.textContent = parts.join(' · ');
     countEl.classList.toggle('over', spare.length > 0 && empty === 0);

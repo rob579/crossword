@@ -400,12 +400,14 @@ function update() {
   void model;
 }
 
+// Bring a clue into view in its list (only if it isn't fully visible already).
 function scrollIntoList(li) {
   const list = li.closest('ol');
   if (!list || list.scrollHeight <= list.clientHeight) return;
-  const top = li.offsetTop - list.offsetTop;
-  if (top < list.scrollTop || top + li.offsetHeight > list.scrollTop + list.clientHeight) {
-    list.scrollTo({ top: top - list.clientHeight / 3, behavior: 'smooth' });
+  const lr = list.getBoundingClientRect(), r = li.getBoundingClientRect();
+  if (r.top < lr.top || r.bottom > lr.bottom) {
+    const top = list.scrollTop + (r.top - lr.top) - list.clientHeight / 3;
+    list.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
   }
 }
 

@@ -62,7 +62,13 @@
             <svg class="fs-off" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>
           </button>
           <button type="button" class="tool only-narrow" data-act="clues">Clues</button>
-          <button type="button" class="tool only-wide" data-act="share" title="Share this puzzle">⤴<span class="tool-label"> Share</span></button>
+          <details class="menu only-wide">
+            <summary class="tool" title="Share">⤴<span class="tool-label"> Share</span></summary>
+            <div class="menu-items">
+              <button type="button" data-act="share">Share link…</button>
+              <button type="button" data-act="share-progress">Share progress…</button>
+            </div>
+          </details>
           <button type="button" class="tool only-wide" data-act="edit-grid" title="Fix black/white squares">✎<span class="tool-label"> Edit grid</span></button>
           <details class="menu only-wide">
             <summary class="tool">Check</summary>
@@ -104,6 +110,7 @@
               <button type="button" data-act="clear:all">Clear puzzle</button>
               <span class="menu-heading">Puzzle</span>
               <button type="button" data-act="share">Share link…</button>
+              <button type="button" data-act="share-progress">Share progress…</button>
               <button type="button" data-act="edit-grid">Edit grid…</button>
             </div>
           </details>
@@ -163,6 +170,21 @@
     </div>
     <div class="dlg-actions">
       <button type="button" class="btn primary" id="btn-share-native" hidden>Share…</button>
+    </div>
+  </dialog>
+
+  <!-- Share progress -->
+  <dialog id="dlg-progress" class="sheet wide">
+    <div class="dlg-head">
+      <h2>Share progress</h2>
+      <button type="button" class="icon-btn" id="btn-progress-close" aria-label="Close">✕</button>
+    </div>
+    <p class="muted">A picture of the clue list showing which clues you've solved – no answers are shown.</p>
+    <div class="progress-preview"><img id="progress-img" alt="Clue list showing your progress"></div>
+    <div class="dlg-actions">
+      <button type="button" class="btn ghost" id="btn-progress-copy" hidden>Copy</button>
+      <button type="button" class="btn ghost" id="btn-progress-save">Download</button>
+      <button type="button" class="btn primary" id="btn-progress-share" hidden>Share…</button>
     </div>
   </dialog>
 

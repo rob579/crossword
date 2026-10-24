@@ -1,6 +1,7 @@
 import { parseIpuz, clueHtml, parseEnumeration, editGrid } from './ipuz.js';
 import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, filledCount } from './store.js';
 import { createAnagrammer } from './anagram.js';
+import { renderProgressImage } from './progress-image.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -699,6 +700,8 @@ $('#view-solver').addEventListener('click', e => {
     location.hash = '';
   } else if (act === 'share') {
     sharePuzzle();
+  } else if (act === 'share-progress') {
+    shareProgress();
   } else if (act === 'edit-grid') {
     startEditGrid();
   } else if (act === 'edit-cancel') {
@@ -740,6 +743,48 @@ $('#btn-share-native').addEventListener('click', () => {
 });
 $('#btn-share-close').addEventListener('click', () => $('#dlg-share').close());
 $('#share-url').addEventListener('focus', e => e.target.select());
+
+// ---- share progress (picture of the clue list) ----
+let progressFile = null;
+async function shareProgress() {
+  const { model } = cur;
+  const withEnum = cl => {
+    const t = String(cl.text || '');
+    return cl.enumeration && !hasEnum(t) ? { ...cl, text: `${t} (${cl.enumeration})` } : cl;
+  };
+  const canvas = renderProgressImage({
+    title: model.title,
+    author: model.author,
+    clues: { across: model.clues.across.map(withEnum), down: model.clues.down.map(withEnum) },
+    status: cl => (!clueComplete(cl) ? 'open' : isConfirmed(cl.id) ? 'confirmed' : 'done'),
+  });
+  const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+  const name = `${(model.title || 'crossword').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'crossword'}-progress.png`;
+  progressFile = new File([blob], name, { type: 'image/png' });
+  const img = $('#progress-img');
+  if (img.src) URL.revokeObjectURL(img.src);
+  img.src = URL.createObjectURL(blob);
+  $('#btn-progress-share').hidden = !(navigator.canShare && navigator.canShare({ files: [progressFile] }));
+  $('#btn-progress-copy').hidden = !(navigator.clipboard && window.ClipboardItem);
+  $('#btn-progress-copy').textContent = 'Copy';
+  $('#dlg-progress').showModal();
+}
+$('#btn-progress-share').addEventListener('click', () => {
+  navigator.share({ files: [progressFile], title: cur?.model.title || 'Crossword' }).catch(() => {});
+});
+$('#btn-progress-save').addEventListener('click', () => {
+  const a = document.createElement('a');
+  a.href = $('#progress-img').src;
+  a.download = progressFile.name;
+  document.body.appendChild(a); a.click(); a.remove();
+});
+$('#btn-progress-copy').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': progressFile })]);
+    $('#btn-progress-copy').textContent = 'Copied ✓';
+  } catch { toast("Couldn't copy the picture – try Download instead"); }
+});
+$('#btn-progress-close').addEventListener('click', () => $('#dlg-progress').close());
 
 // ---- grid editing (fix black/white squares) ----
 function startEditGrid() {

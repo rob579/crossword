@@ -594,3 +594,8 @@ body.focus .solver-toolbar { padding-top: max(6px, env(safe-area-inset-top)); }
 .setting-block .field-label { margin: 0 0 6px; }
 .ana-board-head { gap: 12px; }
 .ana-count { text-align: right; }
+
+/* share progress */
+dialog.sheet.wide { width: min(760px, calc(100% - 16px)); }
+.progress-preview { margin-top: 10px; max-height: 60dvh; overflow: auto; border: 1px solid var(--line); border-radius: 10px; background: #fffdf8; }
+.progress-preview img { display: block; width: 100%; height: auto; }

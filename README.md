@@ -4,7 +4,7 @@ A personal crossword solver. Import `.ipuz` files, solve them in the browser, an
 
 ## Features
 
-- **Import .ipuz** – tap *Import* or drop files anywhere on the page. Handles numbered grids, blocks, circled cells, barred (cryptic-style) grids, enumerations and linked clues.
+- **Import .ipuz** – tap *Import* or drop files anywhere on the page. Handles numbered grids, blocks, circled cells, barred (cryptic-style) grids, enumerations and linked clues (e.g. "14, 16 Across": typing and Backspace run through every part, and "See 14" clues jump to the main clue).
 - **Sync across devices** – puzzles and progress are stored in Cloudflare KV and merged letter-by-letter (newest wins), so you can start on your phone and finish on the laptop. Everything also saves locally, so it works offline and syncs when you're back.
 - **Standard solving**
   - The current word is highlighted in the direction you're solving, and its clue is highlighted in the list (the crossing clue gets a faint marker).

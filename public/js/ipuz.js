@@ -3,7 +3,9 @@
 //   { title, author, copyright, notes, width, height, hasSolution,
 //     cells:   [{ r, c, block, void, label, circle, bars, color, solution, given }],
 //     entries: { [id]: { id, dir, number, cells: [idx...] } },
-//     clues:   { across: [clue], down: [clue] },   clue = { id, number, text, enumeration, entryIds }
+//     clues:   { across: [clue], down: [clue] },   clue = { id, number, label, text, enumeration, entryIds, seeOf }
+//              (a linked clue such as "14, 16" lists every entry in entryIds; its "See 14" clues have
+//               no entries of their own and point to it with seeOf)
 //     cellEntries: [{ across: entryId|null, down: entryId|null }] }
 
 export function parseIpuz(text) {
@@ -140,13 +142,15 @@ export function parseIpuz(text) {
     if (dir !== 'across' && dir !== 'down') continue;
     const list = clueSrc[key] || [];
     list.forEach((item, i) => {
-      let number = null, text = '', enumeration = null, continued = [], cellList = null;
+      let number = null, text = '', enumeration = null, continued = [], cellList = null, label = null, see = null;
       if (Array.isArray(item)) { number = item[0]; text = item[1]; }
       else if (item && typeof item === 'object') {
         number = item.number ?? item.label ?? null;
+        label = item.label != null ? String(item.label) : null;
         text = item.clue ?? item.text ?? '';
         enumeration = item.enumeration ?? null;
-        continued = item.continued || [];
+        continued = [].concat(item.continued || []);
+        see = item.see && typeof item.see === 'object' ? item.see : null;
         cellList = item.cells || null;
       } else if (typeof item === 'string') { text = item; }
       if (text && typeof text === 'object') text = text.text ?? JSON.stringify(text);
@@ -180,16 +184,39 @@ export function parseIpuz(text) {
         id: `${dir}-${number ?? i}-${i}`,
         dir,
         number: number ?? '',
+        label,
         text: String(text ?? ''),
         enumeration: enumeration != null ? String(enumeration) : null,
         entryIds,
+        see,
       });
     });
   }
 
+  // "See 14" clues (a "see" reference, or just that text): the squares belong to the linked clue.
+  // Add them to that clue if its "continued" didn't already, and keep the See clue only as a
+  // pointer in the list (seeOf), so typing and highlighting treat the whole answer as one.
+  for (const dir of ['across', 'down']) {
+    for (const cl of clues[dir]) {
+      let ref = cl.see;
+      if (!ref) {
+        const m = cl.text.replace(/<[^>]*>/g, '').match(/^\s*see\s+(\d+)\s*-?\s*(across|down|a|d)?\b/i);
+        if (m) ref = { number: m[1], direction: m[2] ? (m[2][0].toLowerCase() === 'a' ? 'across' : 'down') : dir };
+      }
+      if (!ref) continue;
+      const tdir = String(ref.direction || dir).toLowerCase().split(':')[0];
+      const target = clues[tdir]?.find(t => t !== cl && !t.see && String(t.number) === String(ref.number) && t.entryIds.length);
+      if (!target) continue;
+      for (const eid of cl.entryIds) if (!target.entryIds.includes(eid)) target.entryIds.push(eid);
+      cl.entryIds = [];
+      cl.seeOf = target.id;
+    }
+  }
+  for (const dir of ['across', 'down']) for (const cl of clues[dir]) delete cl.see;
+
   // Entries with no clue still get a placeholder so navigation works.
   for (const e of Object.values(entries)) {
-    if (!clues[e.dir].some(cl => cl.entryIds[0] === e.id)) {
+    if (!clues[e.dir].some(cl => cl.entryIds.includes(e.id)) && !clues[e.dir === 'across' ? 'down' : 'across'].some(cl => cl.entryIds.includes(e.id))) {
       clues[e.dir].push({ id: `${e.dir}-${e.number}-auto`, dir: e.dir, number: e.number, text: '', enumeration: null, entryIds: [e.id] });
     }
   }

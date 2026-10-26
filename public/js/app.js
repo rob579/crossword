@@ -270,7 +270,8 @@ function markDoneClues() {
   const { model } = cur;
   const unconfirm = [];
   for (const li of $$('#clue-panel .clue')) {
-    const cl = clueById(li.dataset.clue);
+    const own = clueById(li.dataset.clue);
+    const cl = own?.seeOf ? clueById(own.seeOf) : own; // a "See 14" clue follows 14
     const done = clueComplete(cl);
     li.classList.toggle('done', done);
     // a confirmed answer that's no longer complete loses its confirmation
@@ -309,7 +310,7 @@ function toggleConfirmed(cl) {
   navigator.vibrate?.(15);
   markDoneClues();
   update();
-  toast(on ? `${cl.number} ${cl.dir === 'across' ? 'Across' : 'Down'} confirmed ✓` : 'Confirmation removed', 1800);
+  toast(on ? `${clueName(cl)} ${cl.dir === 'across' ? 'Across' : 'Down'} confirmed ✓` : 'Confirmation removed', 1800);
 }
 
 // press and hold (on a clue in the list, or on the clue bar) to confirm / unconfirm
@@ -343,12 +344,16 @@ function buildClues() {
       li.className = 'clue';
       li.dataset.clue = cl.id;
       const enumTxt = cl.enumeration && !hasEnum(cl.text) ? ` <span class="enum">(${clueHtml(cl.enumeration)})</span>` : '';
-      li.innerHTML = `<span class="clue-num">${clueHtml(cl.number)}</span><span class="clue-text">${clueHtml(cl.text) || '<em class="muted">—</em>'}${enumTxt}</span>`;
-      if (!cl.entryIds.length) li.classList.add('orphan');
+      li.innerHTML = `<span class="clue-num">${clueHtml(clueName(cl))}</span><span class="clue-text">${clueHtml(cl.text) || '<em class="muted">—</em>'}${enumTxt}</span>`;
+      if (cl.seeOf) li.classList.add('see');
+      else if (!cl.entryIds.length) li.classList.add('orphan');
       ol.appendChild(li);
     }
   }
 }
+
+// The number shown for a clue: "14, 16" for a linked clue that has a label, otherwise its number.
+const clueName = cl => (cl.label || cl.number);
 
 // True if the clue text already ends with a length such as (5), (3,4), (2-5) or (4 words)
 const hasEnum = text => /\(\s*\d+(?:\s*[-,.\s/]\s*\d+)*(?:\s*words?)?\s*\)\s*$/i.test(String(text).replace(/<[^>]*>/g, '').trim());
@@ -382,9 +387,10 @@ function update() {
   const cross = entryAt(sel.cell, otherDir);
   const crossClue = cross ? cur.entryClue[cross.id] : null;
   for (const li of $$('#clue-panel .clue')) {
-    const on = cl && li.dataset.clue === cl.id;
-    li.classList.toggle('active', !!on);
-    li.classList.toggle('cross', !!(crossClue && li.dataset.clue === crossClue.id));
+    const own = clueById(li.dataset.clue);
+    const ref = own?.seeOf || li.dataset.clue; // "See 14" lights up with 14
+    li.classList.toggle('active', !!(cl && ref === cl.id));
+    li.classList.toggle('cross', !!(crossClue && ref === crossClue.id));
   }
   for (const id of [cl?.id, crossClue?.id]) {
     const li = id && $(`#clue-panel .clue[data-clue="${CSS.escape(id)}"]`);
@@ -395,7 +401,7 @@ function update() {
   if (cl) {
     const len = activeWordCells().length;
     const enumTxt = cl.enumeration ? cl.enumeration : len;
-    $('#cluebar-num').textContent = `${cl.number}${cl.dir === 'across' ? 'A' : 'D'}`;
+    $('#cluebar-num').textContent = `${clueName(cl)}${cl.dir === 'across' ? 'A' : 'D'}`;
     $('#cluebar').classList.toggle('confirmed', isConfirmed(cl.id) && clueComplete(cl));
     const showEnum = !hasEnum(cl.text);
     $('#cluebar-text').innerHTML = `${clueHtml(cl.text) || '<em class="muted">No clue</em>'}${showEnum ? ` <span class="enum">(${clueHtml(String(enumTxt))})</span>` : ''}`;
@@ -517,25 +523,42 @@ const prefs = {
   set skipFilled(v) { localStorage.setItem('cw.skipFilled', v ? '1' : '0'); },
 };
 
-function typeLetter(ch) {
+// The answer the selected square is part of, square by square with each square's direction.
+// For a linked clue (e.g. 14,16 Across, or 5 Across / 17 Down) that's every entry in order,
+// so typing and Backspace carry on from one entry into the next.
+function answerAt() {
   const e = entryAt(cur.sel.cell, cur.sel.dir);
+  if (!e) return null;
+  const cl = cur.entryClue[e.id];
+  const parts = cl && cl.entryIds.length > 1 ? cl.entryIds.map(id => cur.model.entries[id]).filter(Boolean) : [e];
+  const cells = [], dirs = [];
+  for (const p of parts) for (const c of p.cells) { cells.push(c); dirs.push(p.dir); }
+  let k = cells.findIndex((c, j) => c === cur.sel.cell && dirs[j] === cur.sel.dir);
+  if (k < 0) k = cells.indexOf(cur.sel.cell);
+  return { cells, dirs, k };
+}
+const moveTo = (w, j) => { cur.sel.cell = w.cells[j]; cur.sel.dir = w.dirs[j]; };
+
+function typeLetter(ch) {
+  const w = answerAt();
   // "skip filled" only applies while the word still has gaps; when overwriting a
   // complete word, step through it one square at a time as usual.
-  const wordHadGaps = e && e.cells.some(i => i !== cur.sel.cell && !valueAt(i));
+  const wordHadGaps = !!w && w.cells.some((i, j) => j !== w.k && !valueAt(i));
   setCells([[cur.sel.cell, ch]]);
   checkComplete(true);
-  if (!e) return update();
-  const k = e.cells.indexOf(cur.sel.cell);
+  if (!w) return update();
+  const n = w.cells.length, k = w.k;
   if (prefs.skipFilled && wordHadGaps) {
     // next empty square after this one, wrapping round to the start of the word
-    const order = [...e.cells.slice(k + 1), ...e.cells.slice(0, k)];
-    const next = order.find(i => !valueAt(i));
-    if (next != null) { cur.sel.cell = next; update(); return; }
+    for (let s = 1; s < n; s++) {
+      const j = (k + s) % n;
+      if (!valueAt(w.cells[j])) { moveTo(w, j); update(); return; }
+    }
   }
   // step to the next square, skipping letters that belong to a confirmed crossing answer
   let j = k + 1;
-  while (j < e.cells.length && crossConfirmed(e.cells[j], cur.sel.dir)) j++;
-  if (j < e.cells.length && !(prefs.skipFilled && wordHadGaps)) { cur.sel.cell = e.cells[j]; update(); }
+  while (j < n && crossConfirmed(w.cells[j], w.dirs[j])) j++;
+  if (j < n && !(prefs.skipFilled && wordHadGaps)) { moveTo(w, j); update(); }
   else if (!allFilled()) nextClue(1);
   else update();
 }
@@ -564,13 +587,13 @@ const canDelete = i => !isProtected(i) || (i === cur.sel.cell && pickedHere());
 function backspace() {
   const i = cur.sel.cell;
   if (valueAt(i) && canDelete(i)) { setCells([[i, '']]); update(); return; }
-  const e = entryAt(i, cur.sel.dir);
-  if (!e) return;
-  // step back through the word, skipping letters from confirmed answers
-  let k = e.cells.indexOf(i) - 1;
-  while (k >= 0 && isProtected(e.cells[k])) k--;
+  const w = answerAt();
+  if (!w) return;
+  // step back through the word (all of a linked answer), skipping letters from confirmed answers
+  let k = w.k - 1;
+  while (k >= 0 && isProtected(w.cells[k])) k--;
   if (k >= 0) {
-    cur.sel.cell = e.cells[k];
+    moveTo(w, k);
     if (valueAt(cur.sel.cell)) setCells([[cur.sel.cell, '']]);
     update();
   }
@@ -608,7 +631,8 @@ $('#grid').addEventListener('click', e => {
 $('#clue-panel').addEventListener('click', e => {
   const li = e.target.closest('.clue');
   if (!li || !cur) return;
-  const cl = clueById(li.dataset.clue);
+  let cl = clueById(li.dataset.clue);
+  if (cl?.seeOf) cl = clueById(cl.seeOf); // "See 14" jumps to 14
   if (cl?.entryIds.length) { selectClue(cl); closeClueSheet(); }
 });
 
@@ -882,7 +906,7 @@ const anagram = createAnagrammer($('#anagram-body'), {
     });
     const en = parseEnumeration(cl);
     const breaks = en && en.total === cells.length ? en.breaks : [];
-    return { label: `${cl.number} ${cl.dir === 'across' ? 'Across' : 'Down'}`, clue: clue + enumTxt, letters: cells.map(i => valueAt(i)), fixed, breaks };
+    return { label: `${clueName(cl)} ${cl.dir === 'across' ? 'Across' : 'Down'}`, clue: clue + enumTxt, letters: cells.map(i => valueAt(i)), fixed, breaks };
   },
   onFill(letters) {
     if (!cur) return;

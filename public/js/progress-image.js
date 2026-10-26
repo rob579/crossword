@@ -110,7 +110,7 @@ export function renderProgressImage({ title, author, clues, status }) {
       ctx.fillStyle = colour;
       ctx.font = `700 ${FONT}px ${SANS}`;
       ctx.textAlign = 'right';
-      ctx.fillText(String(r.cl.number ?? ''), x0 + PAD + TICK_W + NUM_W, baseY);
+      ctx.fillText(String(r.cl.label || r.cl.number || ''), x0 + PAD + TICK_W + NUM_W, baseY);
       ctx.textAlign = 'left';
       ctx.font = `${FONT}px ${SANS}`;
       r.lines.forEach((ln, k) => ctx.fillText(ln, x0 + textX, baseY + k * LH));

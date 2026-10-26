@@ -304,6 +304,7 @@ summary.tool.more::after { content: none; }
 .clue.cross { border-left-color: var(--word); }
 .clue.active { background: var(--word); color: var(--word-ink); border-left-color: var(--accent); }
 .clue.orphan { cursor: default; }
+.clue.see .clue-text { font-style: italic; }
 .clue-num { font-weight: 700; min-width: 1.8em; text-align: right; flex: none; }
 .clue-text { min-width: 0; }
 

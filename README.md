@@ -60,6 +60,16 @@ The API rejects every request without the sync key, so your data is private even
 
 Cloudflare KV's free plan allows 1,000 writes a day. The app batches saves (one write after you pause typing for a few seconds, plus one when you leave the page), so normal solving uses a few dozen writes per puzzle. KV is eventually consistent — changes can take up to about a minute to appear on another device.
 
+### Extra people (their own sync key)
+
+Each extra person gets their own private library and progress. Add a secret **`SYNC_USERS`** in the Pages project's *Variables and Secrets* (Production and Preview), e.g.
+
+```
+{"sam": "a-long-random-key-for-sam"}
+```
+
+Add more people as more entries. Names are lowercase letters, numbers, `-` or `_`. Your own `SYNC_TOKEN` keeps working exactly as before. Redeploy after changing it. Each person enters their key in Settings on their devices.
+
 ## Local development
 
 ```bash

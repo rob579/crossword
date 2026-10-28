@@ -50,6 +50,15 @@ export const local = {
   clearDirty(id) { write(LS.dirty, read(LS.dirty, []).filter(x => x !== id)); },
   dirty: () => read(LS.dirty, []),
   token: () => localStorage.getItem(LS.token) || '',
+  // whose sync key this device last used ('' = original key, null = never synced)
+  syncUser: () => localStorage.getItem('cw.syncUser'),
+  setSyncUser: u => localStorage.setItem('cw.syncUser', u),
+  // forget this device's library (used when switching to a different person's key)
+  clearLibrary() {
+    for (const k of Object.keys(localStorage)) {
+      if (k === LS.puzzles || k === LS.dirty || k.startsWith('cw.progress.') || k.startsWith('cw.sel.')) localStorage.removeItem(k);
+    }
+  },
   setToken: t => (t ? localStorage.setItem(LS.token, t) : localStorage.removeItem(LS.token)),
 };
 
@@ -81,9 +90,10 @@ function reportError(e) {
   else setStatus('error', `Sync error: ${e.message}`);
 }
 
+// Check a sync key; returns { ok, user } where user is '' for the original key.
 export async function testToken(token) {
-  const res = await fetch('/api/puzzles', { headers: { Authorization: `Bearer ${token}` } });
-  if (res.ok) return { ok: true };
+  const res = await fetch('/api/whoami', { headers: { Authorization: `Bearer ${token}` } });
+  if (res.ok) { const { user = '' } = await res.json().catch(() => ({})); return { ok: true, user }; }
   let msg = `HTTP ${res.status}`;
   try { msg = (await res.json()).error || msg; } catch {}
   return { ok: false, message: msg };

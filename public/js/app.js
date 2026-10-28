@@ -1109,6 +1109,8 @@ function openSettings() {
   $('#token-input').value = local.token();
   $('#settings-msg').textContent = '';
   $('#btn-sync-off').hidden = !local.token();
+  const u = local.syncUser();
+  if (local.token() && u) $('#settings-msg').textContent = `Syncing as ${u}.`;
   $('#pref-skip').checked = prefs.skipFilled;
   $('#dlg-settings').showModal();
 }
@@ -1130,12 +1132,26 @@ $('#settings-form').addEventListener('submit', async e => {
   if (!token) { msg.textContent = 'Enter your sync key.'; return; }
   msg.textContent = 'Checking…';
   try {
-    const r = await testToken(token);
+    var r = await testToken(token);
     if (!r.ok) { msg.textContent = `Couldn't connect: ${r.message}`; return; }
   } catch { msg.textContent = "Couldn't reach the server (offline?)"; return; }
+  // Switching to someone else's key: don't mix their library with the one on this device.
+  const prev = local.syncUser();
+  const hasLocal = Object.keys(local.puzzles()).length > 0;
+  if (prev != null && prev !== r.user && hasLocal) {
+    const who = r.user ? `${r.user}'s` : 'the main';
+    if (!confirm(`This is ${who} sync key. Switch this device over to its puzzles?\n\nThe puzzles currently on this device stay safe on the server under the other key.`)) {
+      msg.textContent = 'Not changed.';
+      return;
+    }
+    location.hash = '';
+    local.clearLibrary();
+  }
   local.setToken(token);
+  local.setSyncUser(r.user);
   $('#dlg-settings').close();
-  toast('Sync is on');
+  toast(r.user ? `Sync is on – syncing as ${r.user}` : 'Sync is on');
+  renderLibrary();
   syncAll(onRemoteChange);
 });
 $('#btn-sync-off').addEventListener('click', () => {
@@ -1190,3 +1206,5 @@ $('#btn-home').addEventListener('click', () => { location.hash = ''; });
 
 route();
 syncAll(onRemoteChange);
+// devices that were syncing before per-person keys existed: remember whose key they use
+if (local.token() && local.syncUser() == null) testToken(local.token()).then(r => { if (r.ok) local.setSyncUser(r.user); }).catch(() => {});

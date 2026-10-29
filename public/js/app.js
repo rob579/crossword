@@ -1,7 +1,7 @@
-import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261029b';
-import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, filledCount } from './store.js?v=20261029b';
-import { createAnagrammer } from './anagram.js?v=20261029b';
-import { renderProgressImage } from './progress-image.js?v=20261029b';
+import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261029c';
+import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, filledCount } from './store.js?v=20261029c';
+import { createAnagrammer } from './anagram.js?v=20261029c';
+import { renderProgressImage } from './progress-image.js?v=20261029c';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -528,10 +528,6 @@ function toggleDir() {
   if (cur.model.cellEntries[cur.sel.cell][other]) { cur.sel.dir = other; update(); }
 }
 
-function orderedClues() {
-  return [...cur.model.clues.across, ...cur.model.clues.down].filter(c => c.entryIds.length);
-}
-
 function selectClue(cl) {
   const e = cur.model.entries[cl.entryIds[0]];
   const firstEmpty = e.cells.find(i => !valueAt(i));
@@ -539,17 +535,30 @@ function selectClue(cl) {
   update();
 }
 
+// Next / previous step through the grid's answers one entry at a time (Across then Down, in
+// number order). Linked answers count as their separate parts here, so 20A -> 21A -> 24A
+// even when 21A is the second half of 26D.
+function orderedEntries() {
+  const n = e => parseInt(e.number, 10) || 0;
+  return Object.values(cur.model.entries)
+    .sort((a, b) => (a.dir === b.dir ? n(a) - n(b) || a.cells[0] - b.cells[0] : a.dir === 'across' ? -1 : 1));
+}
+function selectEntry(e) {
+  const firstEmpty = e.cells.find(i => !valueAt(i));
+  cur.sel = { cell: firstEmpty ?? e.cells[0], dir: e.dir };
+  update();
+}
 function nextClue(step) {
-  const list = orderedClues();
+  const list = orderedEntries();
   if (!list.length) return;
-  const cl = activeClue();
-  let i = cl ? list.indexOf(cl) : -1;
-  // when stepping forward, prefer clues that still have empty cells
+  const here = entryAt(cur.sel.cell, cur.sel.dir);
+  let i = here ? list.indexOf(here) : -1;
+  // prefer answers that still have empty squares
   for (let n = 0; n < list.length; n++) {
     i = (i + step + list.length) % list.length;
     const cand = list[i];
-    const hasEmpty = cand.entryIds.some(id => cur.model.entries[id].cells.some(c => !valueAt(c)));
-    if (hasEmpty || n === list.length - 1 || allFilled()) { selectClue(cand); return; }
+    const hasEmpty = cand.cells.some(c => !valueAt(c));
+    if (hasEmpty || n === list.length - 1 || allFilled()) { selectEntry(cand); return; }
   }
 }
 const allFilled = () => cur.model.cells.every((c, i) => c.block || c.void || valueAt(i));

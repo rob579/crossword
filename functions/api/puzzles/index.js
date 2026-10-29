@@ -26,7 +26,7 @@ export async function onRequestPost({ request, env, data }) {
   if (typeof raw !== 'string' || raw.length > 2_000_000) return json({ error: 'Invalid puzzle' }, 400);
   const clip = (s, n) => (s == null ? undefined : String(s).slice(0, n));
   const metadata = {
-    title: clip(meta.title, 200), author: clip(meta.author, 120), date: clip(meta.date, 40),
+    title: clip(meta.title, 200), author: clip(meta.author, 120), publisher: clip(meta.publisher, 120), date: clip(meta.date, 40),
     width: Number(meta.width) || 0, height: Number(meta.height) || 0,
     cells: Number(meta.cells) || 0, added: Number(meta.added) || Date.now(),
     rev: Number(meta.rev) || 0,

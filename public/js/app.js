@@ -49,22 +49,29 @@ function renderLibrary() {
       </button>
       <button class="lib-del icon-btn" data-del="${p.id}" aria-label="Delete puzzle" title="Delete">✕</button>`;
     $('.lib-title', card).textContent = meta.title || 'Untitled';
-    $('.lib-meta', card).textContent = [meta.author, formatPuzzleDate(puzzleDate(p)), meta.width && `${meta.width}×${meta.height}`].filter(Boolean).join(' · ');
+    $('.lib-meta', card).textContent = libraryLine(p);
     if (meta.solved) card.classList.add('solved');
     list.appendChild(card);
   }
 }
 
-// The puzzle's date, read from the file itself so it's right for older imports and after an
-// edit synced from another device. Cached per file text.
-const dateCache = new Map();
-function puzzleDate(rec) {
-  const hit = dateCache.get(rec.id);
-  if (hit && hit.raw === rec.raw) return hit.date;
-  let date = '';
-  try { date = parseIpuz(rec.raw).date || ''; } catch { date = rec.meta?.date || ''; }
-  dateCache.set(rec.id, { raw: rec.raw, date });
-  return date;
+// Setter, publication and date, read from the file itself so they're right for older imports and
+// after an edit synced from another device. Cached per file text.
+const infoCache = new Map();
+function puzzleInfo(rec) {
+  const hit = infoCache.get(rec.id);
+  if (hit && hit.raw === rec.raw) return hit.info;
+  let info;
+  try { const m = parseIpuz(rec.raw); info = { author: m.author, publisher: m.publisher, date: m.date }; }
+  catch { info = { author: rec.meta?.author || '', publisher: rec.meta?.publisher || '', date: rec.meta?.date || '' }; }
+  infoCache.set(rec.id, { raw: rec.raw, info });
+  return info;
+}
+// "DS (Herald Sun) · Fri, 23 Oct 2026 · 15×15"
+function libraryLine(rec) {
+  const { author, publisher, date } = puzzleInfo(rec), meta = rec.meta || {};
+  const who = author && publisher ? `${author} (${publisher})` : author || publisher;
+  return [who, formatPuzzleDate(date), meta.width && `${meta.width}×${meta.height}`].filter(Boolean).join(' · ');
 }
 
 $('#lib-list').addEventListener('click', e => {
@@ -88,7 +95,7 @@ async function importRaw(raw) {
   const model = parseIpuz(raw);
   const id = await puzzleId(raw);
   if (local.getPuzzle(id)) return { id, title: model.title, isNew: false };
-  const meta = { title: model.title, author: model.author, date: model.date, width: model.width, height: model.height, cells: openCellCount(model), added: Date.now() };
+  const meta = { title: model.title, author: model.author, publisher: model.publisher, date: model.date, width: model.width, height: model.height, cells: openCellCount(model), added: Date.now() };
   local.putPuzzle(id, { raw, meta, added: meta.added });
   // seed progress from any state saved in the file / pre-filled cells
   const cells = {};
@@ -876,7 +883,7 @@ function saveEditGrid() {
   // clear any letters in squares that are now black
   const nowBlack = flips.filter(i => model.cells[i].block && valueAt(i)).map(i => [i, '']);
   if (nowBlack.length) setCells(nowBlack);
-  const meta = { ...rec.meta, title: model.title, author: model.author, date: model.date, cells: openCellCount(model), rev: Date.now() };
+  const meta = { ...rec.meta, title: model.title, author: model.author, publisher: model.publisher, date: model.date, cells: openCellCount(model), rev: Date.now() };
   local.putPuzzle(id, { raw, meta });
   uploadPuzzle(id, { raw, meta });
   flushPush();

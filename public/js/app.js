@@ -1,4 +1,4 @@
-import { parseIpuz, clueHtml, parseEnumeration, editGrid } from './ipuz.js';
+import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js';
 import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, filledCount } from './store.js';
 import { createAnagrammer } from './anagram.js';
 import { renderProgressImage } from './progress-image.js';
@@ -49,10 +49,22 @@ function renderLibrary() {
       </button>
       <button class="lib-del icon-btn" data-del="${p.id}" aria-label="Delete puzzle" title="Delete">✕</button>`;
     $('.lib-title', card).textContent = meta.title || 'Untitled';
-    $('.lib-meta', card).textContent = [meta.author, meta.width && `${meta.width}×${meta.height}`].filter(Boolean).join(' · ');
+    $('.lib-meta', card).textContent = [meta.author, formatPuzzleDate(puzzleDate(p)), meta.width && `${meta.width}×${meta.height}`].filter(Boolean).join(' · ');
     if (meta.solved) card.classList.add('solved');
     list.appendChild(card);
   }
+}
+
+// The puzzle's date, read from the file itself so it's right for older imports and after an
+// edit synced from another device. Cached per file text.
+const dateCache = new Map();
+function puzzleDate(rec) {
+  const hit = dateCache.get(rec.id);
+  if (hit && hit.raw === rec.raw) return hit.date;
+  let date = '';
+  try { date = parseIpuz(rec.raw).date || ''; } catch { date = rec.meta?.date || ''; }
+  dateCache.set(rec.id, { raw: rec.raw, date });
+  return date;
 }
 
 $('#lib-list').addEventListener('click', e => {
@@ -76,7 +88,7 @@ async function importRaw(raw) {
   const model = parseIpuz(raw);
   const id = await puzzleId(raw);
   if (local.getPuzzle(id)) return { id, title: model.title, isNew: false };
-  const meta = { title: model.title, author: model.author, width: model.width, height: model.height, cells: openCellCount(model), added: Date.now() };
+  const meta = { title: model.title, author: model.author, date: model.date, width: model.width, height: model.height, cells: openCellCount(model), added: Date.now() };
   local.putPuzzle(id, { raw, meta, added: meta.added });
   // seed progress from any state saved in the file / pre-filled cells
   const cells = {};
@@ -167,7 +179,7 @@ function openPuzzle(id) {
   local.putPuzzle(id, { lastOpened: Date.now() });
 
   $('#puz-title').textContent = model.title;
-  $('#puz-author').textContent = [model.author, model.copyright].filter(Boolean).join(' · ');
+  $('#puz-author').textContent = [model.author, formatPuzzleDate(model.date), model.copyright].filter(Boolean).join(' · ');
   $('#puz-notes').hidden = !model.notes;
   $('#puz-notes').title = model.notes || '';
   for (const el of $$('[data-needs-solution]')) el.disabled = !model.hasSolution;
@@ -820,6 +832,14 @@ $('#btn-progress-close').addEventListener('click', () => $('#dlg-progress').clos
 function startEditGrid() {
   closeClueSheet();
   cur.editing = new Set();
+  // details: title, setter, date (a date the picker can't show stays as it is unless changed)
+  const m = cur.model;
+  $('#edit-title').value = m.title === 'Untitled crossword' && !/"title"\s*:/.test(cur.raw) ? '' : m.title;
+  $('#edit-author').value = m.author || '';
+  $('#edit-date').value = puzzleDateToIso(m.date);
+  cur.editInfoStart = { title: $('#edit-title').value, author: $('#edit-author').value, date: $('#edit-date').value };
+  $('#edit-date-raw').hidden = !(m.date && !puzzleDateToIso(m.date));
+  $('#edit-date-raw').textContent = m.date ? `Currently “${m.date}”` : '';
   $('#grid').classList.add('editing');
   document.body.classList.add('editing');
   $('#edit-bar').hidden = false;
@@ -834,24 +854,36 @@ function stopEditGrid() {
 }
 function saveEditGrid() {
   const flips = [...cur.editing];
-  if (!flips.length) { stopEditGrid(); return; }
+  // only the details that were changed are written, so an unreadable date isn't lost by accident
+  const start = cur.editInfoStart || {}, info = {};
+  const now = { title: $('#edit-title').value.trim(), author: $('#edit-author').value.trim(), date: $('#edit-date').value };
+  if (now.title !== start.title.trim()) info.title = now.title;
+  if (now.author !== start.author.trim()) info.author = now.author;
+  if (now.date !== start.date) info.date = isoToPuzzleDate(now.date);
+  if (!flips.length && !Object.keys(info).length) { stopEditGrid(); return; }
   const id = cur.id;
   const rec = local.getPuzzle(id);
   let raw, model;
-  try { raw = editGrid(rec.raw, flips); model = parseIpuz(raw); }
-  catch (e) { toast(`Couldn't update the grid: ${e.message}`, 5000); return; }
+  try {
+    raw = rec.raw;
+    if (flips.length) raw = editGrid(raw, flips);
+    if (Object.keys(info).length) raw = editInfo(raw, info);
+    model = parseIpuz(raw);
+  }
+  catch (e) { toast(`Couldn't update the puzzle: ${e.message}`, 5000); return; }
   // clear any letters in squares that are now black
   const nowBlack = flips.filter(i => model.cells[i].block && valueAt(i)).map(i => [i, '']);
   if (nowBlack.length) setCells(nowBlack);
-  const meta = { ...rec.meta, cells: openCellCount(model), rev: Date.now() };
+  const meta = { ...rec.meta, title: model.title, author: model.author, date: model.date, cells: openCellCount(model), rev: Date.now() };
   local.putPuzzle(id, { raw, meta });
   uploadPuzzle(id, { raw, meta });
   flushPush();
   stopEditGrid();
   reopenPuzzle();
   // warn if the clue numbers no longer line up with the grid
-  const unmatched = [...model.clues.across, ...model.clues.down].filter(c => !c.entryIds.length).length;
-  toast(unmatched ? `Grid updated, but ${unmatched} clue${unmatched > 1 ? 's' : ''} no longer match the grid` : 'Grid updated', unmatched ? 5000 : 2600);
+  const unmatched = flips.length ? [...model.clues.across, ...model.clues.down].filter(c => !c.entryIds.length && !c.seeOf).length : 0;
+  const what = flips.length && Object.keys(info).length ? 'Puzzle updated' : flips.length ? 'Grid updated' : 'Details updated';
+  toast(unmatched ? `${what}, but ${unmatched} clue${unmatched > 1 ? 's' : ''} no longer match the grid` : what, unmatched ? 5000 : 2600);
 }
 function reopenPuzzle() {
   const id = cur.id;

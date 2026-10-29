@@ -415,6 +415,16 @@ dialog.sheet::backdrop { background: rgba(0,0,0,.35); }
   background: var(--sel); color: var(--sel-ink); font-size: 14px;
 }
 .edit-actions { display: flex; gap: 8px; }
+.edit-info { flex: 1 1 100%; display: grid; grid-template-columns: 2fr 1.4fr 1fr; gap: 8px; }
+.edit-info label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; font-weight: 600; min-width: 0; }
+.edit-info input {
+  min-width: 0; width: 100%; padding: 7px 9px; border-radius: 7px; border: 1px solid rgba(0,0,0,.2);
+  background: var(--surface); color: var(--ink); font: 16px var(--font);
+}
+.edit-info small { font-weight: 400; opacity: .8; }
+@media (max-width: 560px) { .edit-info { grid-template-columns: 1fr 1fr; } .edit-info label:first-child { grid-column: 1 / -1; } }
+/* while editing, the phone's own keyboard is needed for the details */
+body.editing .keyboard { display: none; }
 .edit-bar .btn.ghost { border-color: rgba(0,0,0,.25); color: var(--sel-ink); }
 body.editing .cluebar { display: none; }
 .grid.editing .cell:not(.void) { cursor: pointer; }

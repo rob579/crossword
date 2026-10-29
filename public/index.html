@@ -69,7 +69,7 @@
               <button type="button" data-act="share-progress">Share progress…</button>
             </div>
           </details>
-          <button type="button" class="tool only-wide" data-act="edit-grid" title="Fix black/white squares">✎<span class="tool-label"> Edit grid</span></button>
+          <button type="button" class="tool only-wide" data-act="edit-grid" title="Fix black/white squares, or the title, setter and date">✎<span class="tool-label"> Edit grid</span></button>
           <details class="menu only-wide">
             <summary class="tool">Check</summary>
             <div class="menu-items">
@@ -128,7 +128,12 @@
             <button type="button" class="cluebar-nav" id="cluebar-next" aria-label="Next clue">›</button>
           </div>
           <div class="edit-bar" id="edit-bar" hidden>
-            <span><strong>Editing grid.</strong> Tap squares to switch black ↔ white.</span>
+            <span><strong>Editing puzzle.</strong> Tap squares to switch black ↔ white, or change the details.</span>
+            <div class="edit-info">
+              <label>Title <input type="text" id="edit-title" autocomplete="off" placeholder="Untitled crossword"></label>
+              <label>Setter <input type="text" id="edit-author" autocomplete="off"></label>
+              <label>Date <input type="date" id="edit-date"><small id="edit-date-raw" hidden></small></label>
+            </div>
             <span class="edit-actions">
               <button type="button" class="btn ghost" data-act="edit-cancel">Cancel</button>
               <button type="button" class="btn primary" data-act="edit-save">Save</button>

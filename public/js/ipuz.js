@@ -228,6 +228,7 @@ export function parseIpuz(text) {
   return {
     title: stripHtml(d.title) || 'Untitled crossword',
     author: stripHtml(d.author),
+    date: stripHtml(d.date),
     copyright: stripHtml(d.copyright),
     notes: stripHtml(d.notes || d.intro),
     width, height, hasSolution, cells, entries, clues, cellEntries, saved,
@@ -263,6 +264,51 @@ export function parseEnumeration(clue) {
     else if (/[,\s.\/]/.test(sep)) breaks.push({ after: total, type: 'word' });
   }
   return { total, breaks };
+}
+
+// ---- Puzzle dates ----
+// The ipuz spec writes dates as mm/dd/yyyy; files in the wild also use yyyy-mm-dd or dd/mm/yyyy.
+// Returns { y, m, d } or null when the text isn't a recognisable date.
+export function parsePuzzleDate(s) {
+  s = String(s || '').trim();
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return valid(+m[1], +m[2], +m[3]);
+  m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})$/);
+  if (m) {
+    const a = +m[1], b = +m[2], y = +m[3];
+    // mm/dd/yyyy as the spec says, unless the first number can't be a month
+    return a > 12 ? valid(y, b, a) : valid(y, a, b);
+  }
+  return null;
+  function valid(y, mo, d) {
+    const dt = new Date(Date.UTC(y, mo - 1, d));
+    return dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d ? { y, m: mo, d } : null;
+  }
+}
+// "Thu 23 Oct 2026" for display; any other text is shown as it is.
+export function formatPuzzleDate(s) {
+  const p = parsePuzzleDate(s);
+  if (!p) return String(s || '').trim();
+  return new Date(Date.UTC(p.y, p.m - 1, p.d)).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+}
+const pad = n => String(n).padStart(2, '0');
+// yyyy-mm-dd for an <input type="date">, or '' if the date can't be read.
+export function puzzleDateToIso(s) { const p = parsePuzzleDate(s); return p ? `${p.y}-${pad(p.m)}-${pad(p.d)}` : ''; }
+// yyyy-mm-dd (from a date input) to the spec's mm/dd/yyyy.
+export function isoToPuzzleDate(iso) { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${m[2]}/${m[3]}/${m[1]}` : ''; }
+
+// Change the title, setter and/or date. Each of info.title / info.author / info.date that is a
+// string replaces the file's value (an empty string removes it). Returns the updated ipuz text.
+export function editInfo(raw, info) {
+  let t = String(raw).trim();
+  if (!t.startsWith('{')) t = t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1);
+  const d = JSON.parse(t);
+  for (const k of ['title', 'author', 'date']) {
+    if (typeof info[k] !== 'string') continue;
+    const v = info[k].trim();
+    if (v) d[k] = v; else delete d[k];
+  }
+  return JSON.stringify(d);
 }
 
 // Flip the given cells between black and white, then renumber the grid

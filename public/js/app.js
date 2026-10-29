@@ -179,7 +179,7 @@ function openPuzzle(id) {
   local.putPuzzle(id, { lastOpened: Date.now() });
 
   $('#puz-title').textContent = model.title;
-  $('#puz-author').textContent = [model.author, formatPuzzleDate(model.date), model.copyright].filter(Boolean).join(' · ');
+  $('#puz-author').textContent = [model.author, model.publisher, formatPuzzleDate(model.date), model.copyright].filter(Boolean).join(' · ');
   $('#puz-notes').hidden = !model.notes;
   $('#puz-notes').title = model.notes || '';
   for (const el of $$('[data-needs-solution]')) el.disabled = !model.hasSolution;
@@ -836,8 +836,9 @@ function startEditGrid() {
   const m = cur.model;
   $('#edit-title').value = m.title === 'Untitled crossword' && !/"title"\s*:/.test(cur.raw) ? '' : m.title;
   $('#edit-author').value = m.author || '';
+  $('#edit-publisher').value = m.publisher || '';
   $('#edit-date').value = puzzleDateToIso(m.date);
-  cur.editInfoStart = { title: $('#edit-title').value, author: $('#edit-author').value, date: $('#edit-date').value };
+  cur.editInfoStart = { title: $('#edit-title').value, author: $('#edit-author').value, publisher: $('#edit-publisher').value, date: $('#edit-date').value };
   $('#edit-date-raw').hidden = !(m.date && !puzzleDateToIso(m.date));
   $('#edit-date-raw').textContent = m.date ? `Currently “${m.date}”` : '';
   $('#grid').classList.add('editing');
@@ -856,9 +857,10 @@ function saveEditGrid() {
   const flips = [...cur.editing];
   // only the details that were changed are written, so an unreadable date isn't lost by accident
   const start = cur.editInfoStart || {}, info = {};
-  const now = { title: $('#edit-title').value.trim(), author: $('#edit-author').value.trim(), date: $('#edit-date').value };
+  const now = { title: $('#edit-title').value.trim(), author: $('#edit-author').value.trim(), publisher: $('#edit-publisher').value.trim(), date: $('#edit-date').value };
   if (now.title !== start.title.trim()) info.title = now.title;
   if (now.author !== start.author.trim()) info.author = now.author;
+  if (now.publisher !== start.publisher.trim()) info.publisher = now.publisher;
   if (now.date !== start.date) info.date = isoToPuzzleDate(now.date);
   if (!flips.length && !Object.keys(info).length) { stopEditGrid(); return; }
   const id = cur.id;

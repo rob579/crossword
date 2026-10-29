@@ -229,6 +229,7 @@ export function parseIpuz(text) {
     title: stripHtml(d.title) || 'Untitled crossword',
     author: stripHtml(d.author),
     date: stripHtml(d.date),
+    publisher: stripHtml(d.publisher),
     copyright: stripHtml(d.copyright),
     notes: stripHtml(d.notes || d.intro),
     width, height, hasSolution, cells, entries, clues, cellEntries, saved,
@@ -297,13 +298,13 @@ export function puzzleDateToIso(s) { const p = parsePuzzleDate(s); return p ? `$
 // yyyy-mm-dd (from a date input) to the spec's mm/dd/yyyy.
 export function isoToPuzzleDate(iso) { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${m[2]}/${m[3]}/${m[1]}` : ''; }
 
-// Change the title, setter and/or date. Each of info.title / info.author / info.date that is a
+// Change the title, setter, publication and/or date. Each of info.title / author / publisher / date that is a
 // string replaces the file's value (an empty string removes it). Returns the updated ipuz text.
 export function editInfo(raw, info) {
   let t = String(raw).trim();
   if (!t.startsWith('{')) t = t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1);
   const d = JSON.parse(t);
-  for (const k of ['title', 'author', 'date']) {
+  for (const k of ['title', 'author', 'publisher', 'date']) {
     if (typeof info[k] !== 'string') continue;
     const v = info[k].trim();
     if (v) d[k] = v; else delete d[k];

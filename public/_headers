@@ -1,0 +1,4 @@
+# Always check for a newer copy of the app's files (cheap: unchanged files return "304 Not Modified"),
+# so a phone never mixes a new page with old code or styling after an update.
+/*
+  Cache-Control: no-cache

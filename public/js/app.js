@@ -1,7 +1,7 @@
-import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261029a';
-import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, filledCount } from './store.js?v=20261029a';
-import { createAnagrammer } from './anagram.js?v=20261029a';
-import { renderProgressImage } from './progress-image.js?v=20261029a';
+import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261029b';
+import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, filledCount } from './store.js?v=20261029b';
+import { createAnagrammer } from './anagram.js?v=20261029b';
+import { renderProgressImage } from './progress-image.js?v=20261029b';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -329,7 +329,7 @@ function toggleConfirmed(cl) {
   navigator.vibrate?.(15);
   markDoneClues();
   update();
-  toast(on ? `${clueName(cl)} ${cl.dir === 'across' ? 'Across' : 'Down'} confirmed ✓` : 'Confirmation removed', 1800);
+  toast(on ? `${clueLong(cl)} confirmed ✓` : 'Confirmation removed', 1800);
 }
 
 // press and hold (on a clue in the list, or on the clue bar) to confirm / unconfirm
@@ -373,6 +373,23 @@ function buildClues() {
 
 // The number shown for a clue: "14, 16" for a linked clue that has a label, otherwise its number.
 const clueName = cl => (cl.label || cl.number);
+
+// Names built from the clue's actual parts, so linked answers read properly:
+//   clueTag  -> "26D" or, for a linked answer, "26D, 21A"           (clue bar)
+//   clueLong -> "26 Down", "14, 16 Across" or "26 Down, 21 Across"   (messages, anagrammer)
+const DIR = { across: 'Across', down: 'Down' };
+const clueParts = cl => cl.entryIds.map(id => cur.model.entries[id]).filter(Boolean);
+function clueTag(cl) {
+  const parts = clueParts(cl);
+  if (parts.length < 2) return `${cl.number}${cl.dir === 'across' ? 'A' : 'D'}`;
+  return parts.map(e => `${e.number}${e.dir === 'across' ? 'A' : 'D'}`).join(', ');
+}
+function clueLong(cl) {
+  const parts = clueParts(cl);
+  if (parts.length < 2) return `${cl.number} ${DIR[cl.dir]}`;
+  if (parts.every(e => e.dir === parts[0].dir)) return `${parts.map(e => e.number).join(', ')} ${DIR[parts[0].dir]}`;
+  return parts.map(e => `${e.number} ${DIR[e.dir]}`).join(', ');
+}
 
 // True if the clue text already ends with a length such as (5), (3,4), (2-5) or (4 words)
 const hasEnum = text => /\(\s*\d+(?:\s*[-,.\s/]\s*\d+)*(?:\s*words?)?\s*\)\s*$/i.test(String(text).replace(/<[^>]*>/g, '').trim());
@@ -420,7 +437,7 @@ function update() {
   if (cl) {
     const len = activeWordCells().length;
     const enumTxt = cl.enumeration ? cl.enumeration : len;
-    $('#cluebar-num').textContent = `${clueName(cl)}${cl.dir === 'across' ? 'A' : 'D'}`;
+    $('#cluebar-num').textContent = clueTag(cl);
     $('#cluebar').classList.toggle('confirmed', isConfirmed(cl.id) && clueComplete(cl));
     const showEnum = !hasEnum(cl.text);
     $('#cluebar-text').innerHTML = `${clueHtml(cl.text) || '<em class="muted">No clue</em>'}${showEnum ? ` <span class="enum">(${clueHtml(String(enumTxt))})</span>` : ''}`;
@@ -947,7 +964,7 @@ const anagram = createAnagrammer($('#anagram-body'), {
     });
     const en = parseEnumeration(cl);
     const breaks = en && en.total === cells.length ? en.breaks : [];
-    return { label: `${clueName(cl)} ${cl.dir === 'across' ? 'Across' : 'Down'}`, clue: clue + enumTxt, letters: cells.map(i => valueAt(i)), fixed, breaks };
+    return { label: clueLong(cl), clue: clue + enumTxt, letters: cells.map(i => valueAt(i)), fixed, breaks };
   },
   onFill(letters) {
     if (!cur) return;

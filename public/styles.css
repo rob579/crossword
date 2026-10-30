@@ -331,7 +331,10 @@ summary.tool.more::after { content: none; }
   body.clues-open .clue-sheet-backdrop { display: block; }
   .tool-label { display: none; }
   .only-wide { display: none !important; }
-  .puz-title span { display: none; }
+  /* phones: keep the setter, publication and date on a small second line under the title */
+  #puz-author { font-size: 11.5px; line-height: 1.3; margin-top: 1px; white-space: normal; overflow: visible;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .puz-title .puz-copy { display: none; }
 }
 @media (max-width: 520px) {
   .clue-panel { flex-direction: column; }
@@ -616,3 +619,5 @@ dialog.sheet.wide { width: min(760px, calc(100% - 16px)); }
 .cell.tentative .ltr { opacity: .62; }
 .cell.sel.tentative .ltr { opacity: .72; }
 .grid.editing .cell.tentative .ltr, .cell.tentative.wrong .ltr, .grid.solved .cell.tentative .ltr { opacity: 1; }
+.puz-title .puz-copy { font-size: inherit; }
+.puz-title .pt { white-space: nowrap; font-size: inherit; color: inherit; }

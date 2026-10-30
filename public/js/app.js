@@ -1,7 +1,7 @@
-import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261030a';
-import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, filledCount } from './store.js?v=20261030a';
-import { createAnagrammer } from './anagram.js?v=20261030a';
-import { renderProgressImage } from './progress-image.js?v=20261030a';
+import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261031a';
+import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, filledCount } from './store.js?v=20261031a';
+import { createAnagrammer } from './anagram.js?v=20261031a';
+import { renderProgressImage } from './progress-image.js?v=20261031a';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -186,7 +186,24 @@ function openPuzzle(id) {
   local.putPuzzle(id, { lastOpened: Date.now() });
 
   $('#puz-title').textContent = model.title;
-  $('#puz-author').textContent = [model.author, model.publisher, formatPuzzleDate(model.date), model.copyright].filter(Boolean).join(' · ');
+  // setter · publication · date under the title (copyright only where there's room)
+  // (each item is kept whole, so on a narrow screen the line wraps between items, not inside a date)
+  const sub = $('#puz-author');
+  sub.textContent = '';
+  [model.author, model.publisher, formatPuzzleDate(model.date)].filter(Boolean).forEach((t, k) => {
+    if (k) sub.append(' · ');
+    const pt = document.createElement('span');
+    pt.className = 'pt';
+    pt.textContent = t;
+    sub.append(pt);
+  });
+  if (model.copyright) {
+    const c = document.createElement('small');
+    c.className = 'puz-copy';
+    c.textContent = `${sub.textContent ? ' · ' : ''}${model.copyright}`;
+    sub.appendChild(c);
+  }
+  sub.hidden = !sub.textContent;
   $('#puz-notes').hidden = !model.notes;
   $('#puz-notes').title = model.notes || '';
   for (const el of $$('[data-needs-solution]')) el.disabled = !model.hasSolution;

@@ -34,12 +34,15 @@ function wrap(ctx, text, width) {
 /**
  * @param {object} o
  * @param {string} o.title
- * @param {string} [o.author]
+ * @param {string} [o.author]      setter
+ * @param {string} [o.publisher]   publication
+ * @param {string} [o.date]        already formatted for display
+ * @param {string} [o.copyright]
  * @param {{across: object[], down: object[]}} o.clues  clue = { number, text }
  * @param {(clue) => 'open'|'done'|'confirmed'} o.status
  * @returns {HTMLCanvasElement}
  */
-export function renderProgressImage({ title, author, clues, status }) {
+export function renderProgressImage({ title, author, publisher, date, copyright, clues, status }) {
   const W = 1000, SCALE = 2;
   const PAD = 24, COL_GAP = 0;
   const colW = (W - COL_GAP) / 2;
@@ -57,7 +60,12 @@ export function renderProgressImage({ title, author, clues, status }) {
     return { cl, st: status(cl), lines: wrap(measure, text, textW) };
   });
   const cols = { across: layout('across'), down: layout('down') };
-  const HEAD_Y = 92;            // where the ACROSS / DOWN headings sit
+  // header: title, then setter · publication · date (· copyright), then progress
+  measure.font = `15px ${SANS}`;
+  const details = [author, publisher, date, copyright].map(plain).filter(Boolean).join('  ·  ');
+  const detailLines = details ? wrap(measure, details, W - PAD * 2) : [];
+  const PROGRESS_Y = 60 + detailLines.length * 22;
+  const HEAD_Y = PROGRESS_Y + 30;  // where the ACROSS / DOWN headings sit
   const LIST_Y = HEAD_Y + 26;   // first row
   const colHeight = rows => rows.reduce((h, r) => h + r.lines.length * LH + ROW_PAD * 2, 0);
   const H = LIST_Y + Math.max(colHeight(cols.across), colHeight(cols.down)) + 16;
@@ -71,17 +79,20 @@ export function renderProgressImage({ title, author, clues, status }) {
   ctx.fillRect(0, 0, W, H);
 
   // title + summary
-  const all = [...cols.across, ...cols.down].filter(r => r.cl.entryIds?.length !== 0);
+  const all = [...cols.across, ...cols.down].filter(r => r.cl.entryIds?.length !== 0 && !r.cl.seeOf);
   const solved = all.filter(r => r.st !== 'open').length;
   const sure = all.filter(r => r.st === 'confirmed').length;
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = C.ink;
   ctx.font = `600 24px ${SERIF}`;
   ctx.fillText(plain(title) || 'Crossword', PAD, 40);
+  ctx.fillStyle = C.ink;
+  ctx.font = `15px ${SANS}`;
+  detailLines.forEach((ln, k) => ctx.fillText(ln, PAD, 66 + k * 22));
   ctx.fillStyle = C.muted;
   ctx.font = `14px ${SANS}`;
-  const summary = [plain(author), `${solved} of ${all.length} clues solved`, sure ? `${sure} confirmed` : ''].filter(Boolean).join('  ·  ');
-  ctx.fillText(summary, PAD, 64);
+  const summary = [`${solved} of ${all.length} clues solved`, sure ? `${sure} confirmed` : ''].filter(Boolean).join('  ·  ');
+  ctx.fillText(summary, PAD, PROGRESS_Y + 6);
 
   // column headings
   ctx.font = `700 12px ${SANS}`;

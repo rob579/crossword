@@ -1,7 +1,7 @@
-import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261029c';
-import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, filledCount } from './store.js?v=20261029c';
-import { createAnagrammer } from './anagram.js?v=20261029c';
-import { renderProgressImage } from './progress-image.js?v=20261029c';
+import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261030a';
+import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, filledCount } from './store.js?v=20261030a';
+import { createAnagrammer } from './anagram.js?v=20261030a';
+import { renderProgressImage } from './progress-image.js?v=20261030a';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -830,6 +830,9 @@ async function shareProgress() {
   const canvas = renderProgressImage({
     title: model.title,
     author: model.author,
+    publisher: model.publisher,
+    date: formatPuzzleDate(model.date),
+    copyright: model.copyright,
     clues: { across: model.clues.across.map(withEnum), down: model.clues.down.map(withEnum) },
     status: cl => (!clueComplete(cl) ? 'open' : isConfirmed(cl.id) ? 'confirmed' : 'done'),
   });

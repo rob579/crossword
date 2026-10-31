@@ -1,5 +1,5 @@
 import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261031a';
-import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261031b';
+import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261031c';
 import { createAnagrammer } from './anagram.js?v=20261031a';
 import { renderProgressImage } from './progress-image.js?v=20261031a';
 
@@ -1270,11 +1270,12 @@ $('#btn-signout').addEventListener('click', () => {
   toast('Signed out on this device');
 });
 // /login sends the browser back to #/signed-in
-async function completeSignIn() {
+async function completeSignIn(loginReason) {
   history.replaceState(null, '', location.pathname + location.search);
   let r;
-  try { r = await checkSession(); } catch { r = { ok: false }; }
-  if (!r.ok) { toast("Couldn't finish signing in – please try again", 4000); return; }
+  if (loginReason) r = { ok: false, reason: loginReason };
+  else { try { r = await checkSession(); } catch { r = { ok: false, reason: 'offline' }; } }
+  if (!r.ok) { toast(`Couldn't finish signing in (${r.reason || 'unknown'}) – please try again`, 6000); return; }
   // Moving to a different library: don't mix it with the one on this device.
   const prev = local.syncUser();
   const hasLocal = Object.keys(local.puzzles()).length > 0;
@@ -1327,7 +1328,8 @@ function showView(name) {
 }
 
 function route() {
-  if (location.hash === '#/signed-in') { closePuzzle(); renderLibrary(); showView('library'); completeSignIn(); return; }
+  const signedIn = location.hash.match(/^#\/signed-in(?:\/(.*))?$/);
+  if (signedIn) { closePuzzle(); renderLibrary(); showView('library'); completeSignIn(signedIn[1] && decodeURIComponent(signedIn[1])); return; }
   const share = location.hash.match(/^#\/s\/([A-Za-z0-9_-]+)/);
   if (share) { closePuzzle(); openShareLink(share[1]); return; }
   const m = location.hash.match(/^#\/p\/([a-f0-9]+)/);

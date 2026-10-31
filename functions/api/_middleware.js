@@ -1,5 +1,5 @@
 import { json, safeEqual, extraUsers } from '../../lib/util.js';
-import { accessEmail, userForEmail } from '../../lib/access.js';
+import { checkAccessToken, tokenFrom, userForEmail } from '../../lib/access.js';
 
 // Every /api/* request must come from someone who is either
 //  - signed in with Google (Cloudflare Access cookie, see lib/access.js), or
@@ -26,10 +26,10 @@ export async function onRequest(ctx) {
     if (!user) return json({ error: 'Wrong sync key' }, 401);
     user.via = 'key';
   } else {
-    let email = null;
-    try { email = await accessEmail(request, env); } catch (e) { return json({ error: e.message }, 503); }
-    if (!email) return json({ error: 'Not signed in', signin: true }, 401);
-    user = { ...(await userForEmail(email, env)), email, via: 'google' };
+    let r;
+    try { r = await checkAccessToken(tokenFrom(request), env); } catch (e) { return json({ error: e.message }, 503); }
+    if (!r.email) return json({ error: 'Not signed in', signin: true, reason: r.reason }, 401);
+    user = { ...(await userForEmail(r.email, env)), email: r.email, via: 'google' };
   }
   ctx.data.user = user.name;
   ctx.data.prefix = user.prefix;

@@ -116,13 +116,14 @@ export async function testToken(token) {
 // Is this browser signed in with Google? Returns { ok, user, email }.
 export async function checkSession() {
   const res = await fetch('/api/whoami', { credentials: 'same-origin', redirect: 'manual' });
-  if (!res.ok) return { ok: false };
   const b = await res.json().catch(() => ({}));
-  return b.via === 'google' ? { ok: true, user: b.user || '', email: b.email || '' } : { ok: false };
+  if (!res.ok) return { ok: false, reason: b.reason || (res.type === 'opaqueredirect' ? 'redirected' : `HTTP ${res.status}`) };
+  return b.via === 'google' ? { ok: true, user: b.user || '', email: b.email || '' } : { ok: false, reason: 'not-google' };
 }
 
 // Sign out of Google on this site (clears the CF_Authorization cookie). Best effort.
 export function signOutRemote() {
+  fetch('/logout', { credentials: 'same-origin' }).catch(() => {});
   fetch('/cdn-cgi/access/logout', { credentials: 'same-origin', redirect: 'manual' }).catch(() => {});
 }
 

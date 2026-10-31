@@ -1203,6 +1203,10 @@ function openSettings() {
   $('#btn-signout').hidden = !signed;
   $('#signin-msg').textContent = signed ? `Signed in as ${local.email() || 'you'} – syncing.`
     : local.token() ? 'Syncing with a sync key. Sign in with Google to switch over.' : '';
+  // The sync-key option is only for devices already using one (and the pages.dev
+  // test addresses, where Google sign-in isn't available). Everyone else signs in with Google.
+  const keyAllowed = !!local.token() || location.hostname.endsWith('.pages.dev') || location.hostname === 'localhost';
+  $('#key-details').hidden = !keyAllowed;
   $('#key-details').open = !!local.token();
   $('#pref-skip').checked = prefs.skipFilled;
   $('#dlg-settings').showModal();

@@ -134,6 +134,7 @@ code { font-size: .9em; background: var(--line); padding: 1px 5px; border-radius
 .sync-pill[data-state="syncing"] .dot { background: var(--accent); animation: pulse 1s infinite alternate; }
 .sync-pill[data-state="error"] .dot { background: var(--wrong); }
 .sync-pill[data-state="offline"] .dot { background: #d8a33a; }
+.sync-pill[data-state="signin"] .dot { background: #d8a33a; }
 @keyframes pulse { to { opacity: .3; } }
 
 /* ---------- buttons ---------- */
@@ -621,3 +622,7 @@ dialog.sheet.wide { width: min(760px, calc(100% - 16px)); }
 .grid.editing .cell.tentative .ltr, .cell.tentative.wrong .ltr, .grid.solved .cell.tentative .ltr { opacity: 1; }
 .puz-title .puz-copy { font-size: inherit; }
 .puz-title .pt { white-space: nowrap; font-size: inherit; color: inherit; }
+
+/* settings: the older sync-key option, tucked away under Google sign-in */
+.key-details { margin-top: 14px; }
+.key-details > summary { cursor: pointer; font-size: 14px; color: var(--muted); }

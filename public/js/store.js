@@ -8,6 +8,8 @@ const LS = {
   progress: id => `cw.progress.${id}`,
   token: 'cw.token',
   dirty: 'cw.dirty',
+  signedIn: 'cw.signedIn', // '1' = syncing via Google sign-in
+  email: 'cw.email',
 };
 
 const read = (k, def) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } };
@@ -60,6 +62,13 @@ export const local = {
     }
   },
   setToken: t => (t ? localStorage.setItem(LS.token, t) : localStorage.removeItem(LS.token)),
+  // Google sign-in (the login itself is a cookie the browser keeps; this just remembers sync is on)
+  signedIn: () => localStorage.getItem(LS.signedIn) === '1',
+  setSignedIn: on => (on ? localStorage.setItem(LS.signedIn, '1') : localStorage.removeItem(LS.signedIn)),
+  email: () => localStorage.getItem(LS.email) || '',
+  setEmail: e => (e ? localStorage.setItem(LS.email, e) : localStorage.removeItem(LS.email)),
+  // is sync on at all (sync key or Google)?
+  syncOn: () => !!localStorage.getItem(LS.token) || localStorage.getItem(LS.signedIn) === '1',
 };
 
 // ---------- sync ----------
@@ -70,11 +79,15 @@ function setStatus(state, message) { status = { state, message }; listeners.forE
 
 async function api(path, opts = {}) {
   const token = local.token();
-  if (!token) throw Object.assign(new Error('Sync is off'), { code: 'off' });
-  const res = await fetch(`/api/${path}`, {
-    ...opts,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(opts.headers || {}) },
-  });
+  if (!token && !local.signedIn()) throw Object.assign(new Error('Sync is off'), { code: 'off' });
+  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  // Google sign-in rides on the site's CF_Authorization cookie (same origin).
+  // redirect:'manual' so an expired sign-in shows up as "signed out" rather than a CORS error.
+  const res = await fetch(`/api/${path}`, { ...opts, headers, credentials: 'same-origin', redirect: 'manual' });
+  if (!token && (res.type === 'opaqueredirect' || res.status === 401 || res.status === 403)) {
+    throw Object.assign(new Error('Signed out'), { code: 'signin' });
+  }
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
     try { msg = (await res.json()).error || msg; } catch {}
@@ -85,6 +98,7 @@ async function api(path, opts = {}) {
 
 function reportError(e) {
   if (e.code === 'off') setStatus('off', 'Sync is off');
+  else if (e.code === 'signin') setStatus('signin', 'Signed out – sign in again to sync');
   else if (e.code === 401) setStatus('error', 'Sync key rejected');
   else if (e instanceof TypeError) setStatus('offline', 'Offline – saved on this device');
   else setStatus('error', `Sync error: ${e.message}`);
@@ -99,12 +113,25 @@ export async function testToken(token) {
   return { ok: false, message: msg };
 }
 
+// Is this browser signed in with Google? Returns { ok, user, email }.
+export async function checkSession() {
+  const res = await fetch('/api/whoami', { credentials: 'same-origin', redirect: 'manual' });
+  if (!res.ok) return { ok: false };
+  const b = await res.json().catch(() => ({}));
+  return b.via === 'google' ? { ok: true, user: b.user || '', email: b.email || '' } : { ok: false };
+}
+
+// Sign out of Google on this site (clears the CF_Authorization cookie). Best effort.
+export function signOutRemote() {
+  fetch('/cdn-cgi/access/logout', { credentials: 'same-origin', redirect: 'manual' }).catch(() => {});
+}
+
 // Full sync of library + progress. onChange is called if anything local changed.
 let syncing = null;
 export function syncAll(onChange) {
   if (syncing) return syncing;
   syncing = (async () => {
-    if (!local.token()) { setStatus('off', 'Sync is off'); return; }
+    if (!local.syncOn()) { setStatus('off', 'Sync is off'); return; }
     setStatus('syncing', 'Syncing…');
     let changed = false;
     try {
@@ -172,7 +199,7 @@ export async function pullProgress(id) {
 }
 
 export async function pushProgress(id, { quiet = false, keepalive = false, total = 0 } = {}) {
-  if (!local.token()) return;
+  if (!local.syncOn()) return;
   const lp = local.getProgress(id);
   if (!quiet) setStatus('syncing', 'Saving…');
   try {
@@ -190,19 +217,19 @@ export async function pushProgress(id, { quiet = false, keepalive = false, total
 }
 
 export async function deleteRemote(id) {
-  if (!local.token()) return;
+  if (!local.syncOn()) return;
   try { await api(`puzzles/${id}`, { method: 'DELETE' }); } catch (e) { reportError(e); }
 }
 
 export async function uploadPuzzle(id, rec) {
-  if (!local.token()) return;
+  if (!local.syncOn()) return;
   try { await api('puzzles', { method: 'POST', body: JSON.stringify({ id, raw: rec.raw, meta: rec.meta }) }); }
   catch (e) { reportError(e); }
 }
 
 // ---------- share links ----------
 export async function createShare(id, raw, title) {
-  if (!local.token()) throw new Error('Turn on sync (Settings) to create share links');
+  if (!local.syncOn()) throw new Error('Sign in (Settings) to create share links');
   return api('share', { method: 'POST', body: JSON.stringify({ id, raw, title }) });
 }
 export async function fetchShare(sid) {

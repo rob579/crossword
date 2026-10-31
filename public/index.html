@@ -13,8 +13,8 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <title>Crossword</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20261031a">
-  <script src="js/theme.js?v=20261031a"></script>
+  <link rel="stylesheet" href="styles.css?v=20261031b">
+  <script src="js/theme.js?v=20261031b"></script>
 </head>
 <body data-view="library">
   <header class="topbar">
@@ -250,23 +250,32 @@
       </div>
 
       <h3 class="settings-heading">Sync across devices</h3>
-      <p class="muted">Enter your sync key. Use the same key on each device and your puzzles and progress follow you. Without it, everything is saved on this device only.</p>
-      <label for="token-input" class="field-label">Sync key</label>
-      <div class="field-row">
-        <input id="token-input" type="password" autocomplete="off" spellcheck="false" placeholder="your sync key">
-        <button type="button" class="btn ghost" id="btn-token-show">Show</button>
-      </div>
-      <p id="settings-msg" class="settings-msg" role="status"></p>
+      <p class="muted">Sign in with Google and your puzzles and progress follow you to every device you sign in on. Without signing in, everything is saved on this device only.</p>
+      <p id="signin-msg" class="settings-msg" role="status"></p>
       <div class="dlg-actions">
-        <button type="button" class="btn ghost" id="btn-sync-off" hidden>Turn off sync</button>
-        <button type="submit" class="btn primary">Save &amp; sync</button>
+        <button type="button" class="btn ghost" id="btn-signout" hidden>Sign out</button>
+        <button type="button" class="btn primary" id="btn-signin">Sign in with Google</button>
       </div>
+      <details id="key-details" class="key-details">
+        <summary>Use a sync key instead</summary>
+        <p class="muted">The older way to sync: use the same key on each device.</p>
+        <label for="token-input" class="field-label">Sync key</label>
+        <div class="field-row">
+          <input id="token-input" type="password" autocomplete="off" spellcheck="false" placeholder="your sync key">
+          <button type="button" class="btn ghost" id="btn-token-show">Show</button>
+        </div>
+        <p id="settings-msg" class="settings-msg" role="status"></p>
+        <div class="dlg-actions">
+          <button type="button" class="btn ghost" id="btn-sync-off" hidden>Turn off sync</button>
+          <button type="submit" class="btn primary">Save &amp; sync</button>
+        </div>
+      </details>
     </form>
   </dialog>
 
   <div class="drop-hint">Drop .ipuz files to import</div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="js/app.js?v=20261031a"></script>
+  <script type="module" src="js/app.js?v=20261031b"></script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261031a';
-import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, filledCount } from './store.js?v=20261031a';
+import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261031b';
 import { createAnagrammer } from './anagram.js?v=20261031a';
 import { renderProgressImage } from './progress-image.js?v=20261031a';
 
@@ -159,7 +159,7 @@ let cur = null; // { id, model, progress, sel, wrong:Set, cellEls, entryClue, wa
 function openPuzzle(id) {
   const rec = local.getPuzzle(id);
   if (!rec) {
-    if (local.token()) {
+    if (local.syncOn()) {
       syncAll().then(() => { if (local.getPuzzle(id) && location.hash.includes(id)) openPuzzle(id); else { toast('Puzzle not found'); location.hash = ''; } });
     } else { toast('Puzzle not found'); location.hash = ''; }
     return;
@@ -808,7 +808,7 @@ $('#view-solver').addEventListener('click', e => {
 // ---- share link ----
 async function sharePuzzle() {
   const rec = local.getPuzzle(cur.id);
-  if (!local.token()) { toast('Turn on sync in Settings to create share links', 4000); return; }
+  if (!local.syncOn()) { toast('Sign in (Settings) to create share links', 4000); return; }
   toast('Creating link…');
   try {
     const { sid } = await createShare(cur.id, rec.raw, rec.meta?.title);
@@ -1049,7 +1049,7 @@ for (const ev of ['fullscreenchange', 'webkitfullscreenchange']) {
 onSyncStatus(({ state, message }) => {
   const pill = $('#sync-pill');
   pill.dataset.state = state;
-  $('.txt', pill).textContent = { off: 'Sync off', ok: 'Synced', syncing: 'Syncing', error: 'Sync error', offline: 'Offline' }[state] || state;
+  $('.txt', pill).textContent = { off: 'Sync off', ok: 'Synced', syncing: 'Syncing', error: 'Sync error', offline: 'Offline', signin: 'Sign in' }[state] || state;
   pill.title = message;
 });
 
@@ -1198,6 +1198,12 @@ function openSettings() {
   $('#btn-sync-off').hidden = !local.token();
   const u = local.syncUser();
   if (local.token() && u) $('#settings-msg').textContent = `Syncing as ${u}.`;
+  const signed = local.signedIn();
+  $('#btn-signin').hidden = signed;
+  $('#btn-signout').hidden = !signed;
+  $('#signin-msg').textContent = signed ? `Signed in as ${local.email() || 'you'} – syncing.`
+    : local.token() ? 'Syncing with a sync key. Sign in with Google to switch over.' : '';
+  $('#key-details').open = !!local.token();
   $('#pref-skip').checked = prefs.skipFilled;
   $('#dlg-settings').showModal();
 }
@@ -1205,7 +1211,7 @@ $('#btn-settings').addEventListener('click', openSettings);
 $('#pref-skip').addEventListener('change', e => { prefs.skipFilled = e.target.checked; });
 $('#sync-pill').addEventListener('click', () => {
   const st = $('#sync-pill').dataset.state;
-  if (st === 'off' || st === 'error') openSettings();
+  if (st === 'off' || st === 'error' || st === 'signin') openSettings();
   else syncAll(onRemoteChange);
 });
 $('#btn-token-show').addEventListener('click', () => {
@@ -1235,6 +1241,7 @@ $('#settings-form').addEventListener('submit', async e => {
     local.clearLibrary();
   }
   local.setToken(token);
+  local.setSignedIn(false);
   local.setSyncUser(r.user);
   $('#dlg-settings').close();
   toast(r.user ? `Sync is on – syncing as ${r.user}` : 'Sync is on');
@@ -1248,6 +1255,40 @@ $('#btn-sync-off').addEventListener('click', () => {
   toast('Sync turned off on this device');
 });
 $('#btn-settings-close').addEventListener('click', () => $('#dlg-settings').close());
+
+// ---- Google sign-in (Cloudflare Access protects /login) ----
+$('#btn-signin').addEventListener('click', () => { location.href = '/login'; });
+$('#btn-signout').addEventListener('click', () => {
+  local.setSignedIn(false);
+  signOutRemote();
+  $('#dlg-settings').close();
+  syncAll();
+  toast('Signed out on this device');
+});
+// /login sends the browser back to #/signed-in
+async function completeSignIn() {
+  history.replaceState(null, '', location.pathname + location.search);
+  let r;
+  try { r = await checkSession(); } catch { r = { ok: false }; }
+  if (!r.ok) { toast("Couldn't finish signing in – please try again", 4000); return; }
+  // Moving to a different library: don't mix it with the one on this device.
+  const prev = local.syncUser();
+  const hasLocal = Object.keys(local.puzzles()).length > 0;
+  if (prev != null && prev !== r.user && hasLocal) {
+    if (!confirm(`${r.email} has a different library from the one on this device. Switch this device over to it?\n\nThe puzzles currently on this device stay safe on the server.`)) {
+      toast('Not changed');
+      return;
+    }
+    local.clearLibrary();
+  }
+  local.setToken('');
+  local.setSignedIn(true);
+  local.setEmail(r.email);
+  local.setSyncUser(r.user);
+  toast(`Signed in as ${r.email}`);
+  renderLibrary();
+  syncAll(onRemoteChange);
+}
 
 function onRemoteChange() {
   if (cur) {
@@ -1267,7 +1308,7 @@ window.addEventListener('pagehide', flushPush);
 window.addEventListener('online', () => syncAll(onRemoteChange));
 // while a puzzle is open, pick up changes from other devices
 setInterval(() => {
-  if (!cur || document.visibilityState !== 'visible' || !local.token() || pushTimer) return;
+  if (!cur || document.visibilityState !== 'visible' || !local.syncOn() || pushTimer) return;
   const id = cur.id;
   pullProgress(id).then(m => { if (m && cur?.id === id && !pushTimer) { cur.progress = local.getProgress(id); paintLetters(); } });
 }, 30000);
@@ -1282,6 +1323,7 @@ function showView(name) {
 }
 
 function route() {
+  if (location.hash === '#/signed-in') { closePuzzle(); renderLibrary(); showView('library'); completeSignIn(); return; }
   const share = location.hash.match(/^#\/s\/([A-Za-z0-9_-]+)/);
   if (share) { closePuzzle(); openShareLink(share[1]); return; }
   const m = location.hash.match(/^#\/p\/([a-f0-9]+)/);

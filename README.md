@@ -54,7 +54,7 @@ samples/mini.ipuz  small test puzzle
 7. **Redeploy** – bindings and secrets apply to new deployments, so retry the latest deployment for each branch (or push a commit).
 8. On each device, open the site, tap the settings icon (top right) and paste the sync key.
 
-The API rejects every request without the sync key, so your data is private even though the URL is public. For extra protection you can put the site behind Cloudflare Access (Zero Trust → Access → Applications).
+The API rejects every request that isn't signed in (Google) or carrying a sync key, so your data is private even though the URL is public.
 
 ### Free tier note
 
@@ -69,6 +69,27 @@ Each extra person gets their own private library and progress. Add a secret **`S
 ```
 
 Add more people as more entries. Names are lowercase letters, numbers, `-` or `_`. Your own `SYNC_TOKEN` keeps working exactly as before. Redeploy after changing it. Each person enters their key in Settings on their devices.
+
+## Google sign-in (Cloudflare Access)
+
+People sign in with Google instead of typing a sync key. Cloudflare Access protects only the **`/login`** page; signing in there sets a signed `CF_Authorization` cookie for the site, and the API checks that cookie itself (`lib/access.js`: signature, issuer, audience, expiry). So:
+
+- the page and share links stay public – anyone with a link can open and solve a puzzle on their device;
+- syncing needs a Google sign-in, and only accounts allowed by the Access policy can sign in;
+- sync keys (`SYNC_TOKEN` / `SYNC_USERS`) keep working alongside, so devices can move over one at a time;
+- the `*.pages.dev` addresses aren't protected by Access, so sign-in doesn't work there (sync keys still do).
+
+**One-off setup**
+
+1. Zero Trust → Access → **Applications** → *Add* → *Self-hosted*. Destination: `crossword.robsofficetips.com` path `login`. Policy: *Allow*, include the email list(s) of people who may sync. Login method: Google.
+2. Copy the application's **Application Audience (AUD) Tag**.
+3. Pages project → *Settings → Variables and Secrets* (Production, and Preview if testing there):
+   - `ACCESS_TEAM_DOMAIN` = `robsofficetips.cloudflareaccess.com`
+   - `ACCESS_AUD` = the AUD tag (several allowed, comma-separated)
+   - `ACCESS_USERS` (optional, secret) = links Google accounts to the libraries people already have, e.g. `{"rob@gmail.com": "", "sam@gmail.com": "sam"}` – `""` is the original `SYNC_TOKEN` library, other names are `SYNC_USERS` names. Anyone not listed gets a new library of their own (`u:g-<hash>:`).
+4. Redeploy. `GET /api/health` should show `GOOGLE_SIGN_IN: configured`.
+
+To let someone in (or remove them), edit the email list in Zero Trust; nothing here needs to change.
 
 ## Local development
 

@@ -170,7 +170,20 @@ code { font-size: .9em; background: var(--line); padding: 1px 5px; border-radius
 .lib-progress { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: var(--line); margin-top: 8px; overflow: hidden; }
 .lib-progress span { display: block; height: 100%; background: var(--accent); }
 .lib-card.solved .lib-progress span { background: var(--solved); }
-.lib-del { border-radius: 0; height: auto; color: var(--muted); padding: 0 14px; font-size: 14px; }
+.lib-more { border-radius: 0; height: auto; color: var(--muted); padding: 0 14px; font-size: 20px; letter-spacing: 1px; }
+.lib-open { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+.lib-open.pressing { animation: lib-press .55s linear forwards; }
+@keyframes lib-press { to { background: var(--cross); transform: scale(.985); } }
+.lib-card.menu-for { outline: 2px solid var(--accent); outline-offset: 1px; }
+.pop-menu {
+  position: fixed; z-index: 60; min-width: 160px; padding: 4px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow);
+  display: flex; flex-direction: column;
+}
+.pop-menu[hidden] { display: none; }
+.pop-menu button { text-align: left; background: none; border: 0; padding: 10px 12px; border-radius: 6px; cursor: pointer; font-size: 15px; }
+.pop-menu button:hover { background: var(--cross); }
+.pop-menu .danger { color: var(--wrong); }
 .lib-empty {
   text-align: center; padding: 48px 20px; color: var(--muted);
   border: 2px dashed var(--line); border-radius: 14px;

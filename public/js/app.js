@@ -1,7 +1,7 @@
-import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261031a';
-import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261031c';
-import { createAnagrammer } from './anagram.js?v=20261031a';
-import { renderProgressImage } from './progress-image.js?v=20261031a';
+import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261101a';
+import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261101a';
+import { createAnagrammer } from './anagram.js?v=20261101a';
+import { renderProgressImage } from './progress-image.js?v=20261101a';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -47,7 +47,7 @@ function renderLibrary() {
         <span class="lib-progress"><span style="width:${pct}%"></span></span>
         <span class="lib-pct">${meta.solved ? 'Solved ✓' : pct ? pct + '% filled' : 'Not started'}</span>
       </button>
-      <button class="lib-del icon-btn" data-del="${p.id}" aria-label="Delete puzzle" title="Delete">✕</button>`;
+      <button class="lib-more icon-btn" data-more="${p.id}" aria-label="More options" title="Share or delete">⋯</button>`;
     $('.lib-title', card).textContent = meta.title || 'Untitled';
     $('.lib-meta', card).textContent = libraryLine(p);
     if (meta.solved) card.classList.add('solved');
@@ -75,20 +75,80 @@ function libraryLine(rec) {
 }
 
 $('#lib-list').addEventListener('click', e => {
-  const del = e.target.closest('[data-del]');
-  if (del) {
-    const id = del.dataset.del;
+  const more = e.target.closest('[data-more]');
+  if (more) {
+    const r = more.getBoundingClientRect();
+    openLibMenu(more.dataset.more, r.right, r.bottom);
+    return;
+  }
+  const open = e.target.closest('[data-id]');
+  if (open) location.hash = `#/p/${open.dataset.id}`;
+});
+
+// ---- per-puzzle menu in the library: ⋯ button, long press, or right-click ----
+let libMenuFor = null;
+function openLibMenu(id, x, y) {
+  const m = $('#lib-menu');
+  libMenuFor = id;
+  m.hidden = false;
+  const w = m.offsetWidth, h = m.offsetHeight;
+  m.style.left = `${Math.max(8, Math.min(x - w, innerWidth - w - 8))}px`;
+  m.style.top = `${Math.max(8, Math.min(y + 4, innerHeight - h - 8))}px`;
+  $$('.lib-card').forEach(c => c.classList.toggle('menu-for', c.querySelector(`[data-id="${id}"]`) != null));
+}
+function closeLibMenu() {
+  $('#lib-menu').hidden = true;
+  libMenuFor = null;
+  $$('.lib-card.menu-for').forEach(c => c.classList.remove('menu-for'));
+}
+$('#lib-menu').addEventListener('click', e => {
+  const act = e.target.closest('[data-lib-act]')?.dataset.libAct;
+  const id = libMenuFor;
+  closeLibMenu();
+  if (!act || !id) return;
+  if (act === 'share') sharePuzzle(id);
+  if (act === 'delete') {
     const title = local.getPuzzle(id)?.meta?.title || 'this puzzle';
     if (confirm(`Delete "${title}" and its progress from all your devices?`)) {
       local.deletePuzzle(id);
       deleteRemote(id);
       renderLibrary();
     }
-    return;
   }
-  const open = e.target.closest('[data-id]');
-  if (open) location.hash = `#/p/${open.dataset.id}`;
 });
+document.addEventListener('pointerdown', e => { if (libMenuFor && !e.target.closest('#lib-menu, [data-more]')) closeLibMenu(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && libMenuFor) closeLibMenu(); });
+addEventListener('scroll', () => libMenuFor && closeLibMenu(), true);
+addEventListener('resize', () => libMenuFor && closeLibMenu());
+
+// long press (touch) or right-click (mouse) on a card opens the same menu
+{
+  const list = $('#lib-list');
+  let timer = null, start = null, fired = false;
+  const cancel = () => { clearTimeout(timer); timer = null; $$('.lib-open.pressing').forEach(b => b.classList.remove('pressing')); };
+  list.addEventListener('pointerdown', e => {
+    const card = e.target.closest('.lib-open');
+    if (!card || e.button > 0) return;
+    fired = false;
+    start = { x: e.clientX, y: e.clientY };
+    card.classList.add('pressing');
+    timer = setTimeout(() => {
+      fired = true; cancel();
+      navigator.vibrate?.(15);
+      openLibMenu(card.dataset.id, start.x + 60, start.y);
+    }, 550);
+  });
+  list.addEventListener('pointermove', e => { if (timer && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 8) cancel(); });
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) list.addEventListener(ev, cancel);
+  list.addEventListener('contextmenu', e => {
+    const card = e.target.closest('.lib-open');
+    if (!card) return;
+    e.preventDefault();
+    if (!fired) openLibMenu(card.dataset.id, e.clientX + 60, e.clientY);
+  });
+  // the click that follows a long press shouldn't open the puzzle
+  list.addEventListener('click', e => { if (fired) { e.stopImmediatePropagation(); e.preventDefault(); fired = false; } }, true);
+}
 
 // Add one ipuz text to the library. Returns { id, title, isNew }.
 async function importRaw(raw) {
@@ -806,12 +866,13 @@ $('#view-solver').addEventListener('click', e => {
 });
 
 // ---- share link ----
-async function sharePuzzle() {
-  const rec = local.getPuzzle(cur.id);
+async function sharePuzzle(id = cur?.id) {
+  const rec = local.getPuzzle(id);
+  if (!rec) return;
   if (!local.syncOn()) { toast('Sign in (Settings) to create share links', 4000); return; }
   toast('Creating link…');
   try {
-    const { sid } = await createShare(cur.id, rec.raw, rec.meta?.title);
+    const { sid } = await createShare(id, rec.raw, rec.meta?.title);
     const url = `${location.origin}/#/s/${sid}`;
     $('#share-url').value = url;
     $('#share-title').textContent = `"${rec.meta?.title || 'this puzzle'}"`;

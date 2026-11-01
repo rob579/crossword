@@ -1,7 +1,7 @@
-import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261101a';
-import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261101a';
-import { createAnagrammer } from './anagram.js?v=20261101a';
-import { renderProgressImage } from './progress-image.js?v=20261101a';
+import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261101b';
+import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261101b';
+import { createAnagrammer } from './anagram.js?v=20261101b';
+import { renderProgressImage } from './progress-image.js?v=20261101b';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -124,16 +124,16 @@ addEventListener('resize', () => libMenuFor && closeLibMenu());
 // long press (touch) or right-click (mouse) on a card opens the same menu
 {
   const list = $('#lib-list');
-  let timer = null, start = null, fired = false;
+  let timer = null, start = null, fired = null; // fired = { card, at } just after a long press
   const cancel = () => { clearTimeout(timer); timer = null; $$('.lib-open.pressing').forEach(b => b.classList.remove('pressing')); };
   list.addEventListener('pointerdown', e => {
+    fired = null; // any new press starts afresh
     const card = e.target.closest('.lib-open');
     if (!card || e.button > 0) return;
-    fired = false;
     start = { x: e.clientX, y: e.clientY };
     card.classList.add('pressing');
     timer = setTimeout(() => {
-      fired = true; cancel();
+      fired = { card, at: Date.now() }; cancel();
       navigator.vibrate?.(15);
       openLibMenu(card.dataset.id, start.x + 60, start.y);
     }, 550);
@@ -146,8 +146,13 @@ addEventListener('resize', () => libMenuFor && closeLibMenu());
     e.preventDefault();
     if (!fired) openLibMenu(card.dataset.id, e.clientX + 60, e.clientY);
   });
-  // the click that follows a long press shouldn't open the puzzle
-  list.addEventListener('click', e => { if (fired) { e.stopImmediatePropagation(); e.preventDefault(); fired = false; } }, true);
+  // the click that may follow a long press (same card, straight away) shouldn't open the puzzle;
+  // anything else, like the ⋯ on another card, works as normal
+  list.addEventListener('click', e => {
+    const f = fired;
+    fired = null;
+    if (f && Date.now() - f.at < 1500 && e.target.closest('.lib-open') === f.card) { e.stopImmediatePropagation(); e.preventDefault(); }
+  }, true);
 }
 
 // Add one ipuz text to the library. Returns { id, title, isNew }.
@@ -414,10 +419,10 @@ function onLongPress(el, getClue) {
   let timer = null, start = null, fired = false;
   const cancel = () => { clearTimeout(timer); timer = null; el.querySelectorAll('.pressing').forEach(x => x.classList.remove('pressing')); el.classList.remove('pressing'); };
   el.addEventListener('pointerdown', e => {
+    fired = false; // any new press starts afresh
     if (!cur || e.button > 0) return;
     const target = getClue(e) ;
     if (!target) return;
-    fired = false;
     start = { x: e.clientX, y: e.clientY };
     target.el.classList.add('pressing');
     timer = setTimeout(() => { fired = true; cancel(); toggleConfirmed(target.clue); }, 550);
@@ -428,7 +433,7 @@ function onLongPress(el, getClue) {
   el.addEventListener('pointerleave', cancel);
   el.addEventListener('contextmenu', e => e.preventDefault());
   // swallow the click that follows a long press
-  el.addEventListener('click', e => { if (fired) { e.stopImmediatePropagation(); e.preventDefault(); fired = false; } }, true);
+  el.addEventListener('click', e => { const f = fired; fired = false; if (f) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
 }
 
 function buildClues() {

@@ -54,10 +54,15 @@ export function renderProgressImage({ title, author, publisher, date, copyright,
   const textW = colW - textX - PAD;
 
   // lay out both columns first so we know the height
+  // a long label such as "26, 21 across" pushes that row's text along instead of overlapping
   const layout = dir => clues[dir].map(cl => {
+    const label = String(cl.label || cl.number || '');
+    measure.font = `700 ${FONT}px ${SANS}`;
+    const labelW = measure.measureText(label).width;
+    const shift = Math.max(0, labelW - NUM_W);
     measure.font = `${FONT}px ${SANS}`;
     const text = plain(cl.text) || '—';
-    return { cl, st: status(cl), lines: wrap(measure, text, textW) };
+    return { cl, label, shift, st: status(cl), lines: wrap(measure, text, textW - shift) };
   });
   const cols = { across: layout('across'), down: layout('down') };
   // header: title, then setter · publication · date (· copyright), then progress
@@ -121,10 +126,10 @@ export function renderProgressImage({ title, author, publisher, date, copyright,
       ctx.fillStyle = colour;
       ctx.font = `700 ${FONT}px ${SANS}`;
       ctx.textAlign = 'right';
-      ctx.fillText(String(r.cl.label || r.cl.number || ''), x0 + PAD + TICK_W + NUM_W, baseY);
+      ctx.fillText(r.label, x0 + PAD + TICK_W + NUM_W + r.shift, baseY);
       ctx.textAlign = 'left';
       ctx.font = `${FONT}px ${SANS}`;
-      r.lines.forEach((ln, k) => ctx.fillText(ln, x0 + textX, baseY + k * LH));
+      r.lines.forEach((ln, k) => ctx.fillText(ln, x0 + textX + r.shift, baseY + k * LH));
       y += h;
     }
   }

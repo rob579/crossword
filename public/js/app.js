@@ -1,7 +1,7 @@
-import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261101b';
-import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261101b';
-import { createAnagrammer } from './anagram.js?v=20261101b';
-import { renderProgressImage } from './progress-image.js?v=20261101b';
+import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261102a';
+import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261102a';
+import { createAnagrammer } from './anagram.js?v=20261102a';
+import { renderProgressImage } from './progress-image.js?v=20261102a';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -768,7 +768,8 @@ $('#cluebar-next').addEventListener('click', () => cur && nextClue(1));
 $('#cluebar-body').addEventListener('click', () => cur && toggleDir());
 onLongPress($('#clue-panel'), e => {
   const li = e.target.closest('.clue');
-  const clue = li && clueById(li.dataset.clue);
+  let clue = li && clueById(li.dataset.clue);
+  if (clue?.seeOf) clue = clueById(clue.seeOf); // holding "See 3" confirms 3 itself
   return clue ? { el: li, clue } : null;
 });
 onLongPress($('#cluebar-body'), () => {
@@ -917,7 +918,10 @@ async function shareProgress() {
     date: formatPuzzleDate(model.date),
     copyright: model.copyright,
     clues: { across: model.clues.across.map(withEnum), down: model.clues.down.map(withEnum) },
-    status: cl => (!clueComplete(cl) ? 'open' : isConfirmed(cl.id) ? 'confirmed' : 'done'),
+    status: c => {
+      const cl = c.seeOf ? clueById(c.seeOf) || c : c; // "See 3" shows the same state as 3
+      return !clueComplete(cl) ? 'open' : isConfirmed(cl.id) ? 'confirmed' : 'done';
+    },
   });
   const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
   const name = `${(model.title || 'crossword').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'crossword'}-progress.png`;

@@ -1,7 +1,7 @@
-import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261103e';
-import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261103e';
-import { createAnagrammer } from './anagram.js?v=20261103e';
-import { renderProgressImage } from './progress-image.js?v=20261103e';
+import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261103f';
+import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261103f';
+import { createAnagrammer } from './anagram.js?v=20261103f';
+import { renderProgressImage } from './progress-image.js?v=20261103f';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -487,6 +487,8 @@ function markDoneClues() {
     // a confirmed answer that's no longer complete loses its confirmation
     if (cl && isConfirmed(cl.id) && !done) unconfirm.push(cl.id);
     li.classList.toggle('confirmed', !!cl && done && isConfirmed(cl.id));
+    // confirmed with help: one or more of its letters were revealed
+    li.classList.toggle('assisted', !!cl && done && isConfirmed(cl.id) && clueAssisted(cl));
   }
   if (unconfirm.length) setConfirmed(unconfirm, false);
   // letters in a confirmed answer are shown full strength; other letters are slightly faded
@@ -498,6 +500,7 @@ function markDoneClues() {
   cur.cellEls.forEach((el, i) => el.classList.toggle('tentative', !!valueAt(i) && !sure.has(i) && cur.progress.cells[i]?.f !== 'r'));
 }
 
+const clueAssisted = cl => clueCells(cl).some(i => cur.progress.cells[i]?.f === 'r');
 const clueCells = cl => (cl ? cl.entryIds.flatMap(id => cur.model.entries[id]?.cells || []) : []);
 function clueComplete(cl) { const c = clueCells(cl); return c.length > 0 && c.every(i => valueAt(i)); }
 const isConfirmed = id => !!cur.progress.confirmed?.[id]?.on;
@@ -1029,7 +1032,7 @@ async function shareProgress() {
     clues: { across: model.clues.across.map(withEnum), down: model.clues.down.map(withEnum) },
     status: c => {
       const cl = c.seeOf ? clueById(c.seeOf) || c : c; // "See 3" shows the same state as 3
-      return !clueComplete(cl) ? 'open' : isConfirmed(cl.id) ? 'confirmed' : 'done';
+      return !clueComplete(cl) ? 'open' : !isConfirmed(cl.id) ? 'done' : clueAssisted(cl) ? 'assisted' : 'confirmed';
     },
   });
   const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));

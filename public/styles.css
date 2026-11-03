@@ -658,3 +658,6 @@ dialog.sheet.wide { width: min(760px, calc(100% - 16px)); }
 .lib-done[open] > summary::before { transform: rotate(90deg); }
 .lib-done-n { background: var(--line); color: var(--ink); border-radius: 999px; padding: 1px 8px; letter-spacing: 0; font-weight: 600; }
 .lib-done > .lib-list { margin-top: 2px; }
+
+/* confirmed with help (some letters revealed): dotted outline */
+.clue.assisted { outline: 1.5px dashed color-mix(in srgb, var(--solved) 75%, transparent); outline-offset: -4px; border-radius: 8px; }

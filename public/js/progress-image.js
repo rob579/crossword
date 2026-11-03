@@ -39,7 +39,7 @@ function wrap(ctx, text, width) {
  * @param {string} [o.date]        already formatted for display
  * @param {string} [o.copyright]
  * @param {{across: object[], down: object[]}} o.clues  clue = { number, text }
- * @param {(clue) => 'open'|'done'|'confirmed'} o.status
+ * @param {(clue) => 'open'|'done'|'confirmed'|'assisted'} o.status   assisted = confirmed, with revealed letters
  * @returns {HTMLCanvasElement}
  */
 export function renderProgressImage({ title, author, publisher, date, copyright, clues, status }) {
@@ -86,7 +86,8 @@ export function renderProgressImage({ title, author, publisher, date, copyright,
   // title + summary
   const all = [...cols.across, ...cols.down].filter(r => r.cl.entryIds?.length !== 0 && !r.cl.seeOf);
   const solved = all.filter(r => r.st !== 'open').length;
-  const sure = all.filter(r => r.st === 'confirmed').length;
+  const sure = all.filter(r => r.st === 'confirmed' || r.st === 'assisted').length;
+  const helped = all.filter(r => r.st === 'assisted').length;
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = C.ink;
   ctx.font = `600 24px ${SERIF}`;
@@ -96,7 +97,7 @@ export function renderProgressImage({ title, author, publisher, date, copyright,
   detailLines.forEach((ln, k) => ctx.fillText(ln, PAD, 66 + k * 22));
   ctx.fillStyle = C.muted;
   ctx.font = `14px ${SANS}`;
-  const summary = [`${solved} of ${all.length} clues solved`, sure ? `${sure} confirmed` : ''].filter(Boolean).join('  ·  ');
+  const summary = [`${solved} of ${all.length} clues solved`, sure ? `${sure} confirmed` : '', helped ? `${helped} with help` : ''].filter(Boolean).join('  ·  ');
   ctx.fillText(summary, PAD, PROGRESS_Y + 6);
 
   // column headings
@@ -115,10 +116,18 @@ export function renderProgressImage({ title, author, publisher, date, copyright,
     let y = LIST_Y;
     for (const r of cols[dir]) {
       const h = r.lines.length * LH + ROW_PAD * 2;
-      if (r.st === 'confirmed') { ctx.fillStyle = C.sureBg; ctx.fillRect(x0, y, colW, h); }
+      const sure = r.st === 'confirmed' || r.st === 'assisted';
+      if (sure) { ctx.fillStyle = C.sureBg; ctx.fillRect(x0, y, colW, h); }
+      if (r.st === 'assisted') {
+        // dotted outline: confirmed, but with revealed letters
+        ctx.save();
+        ctx.strokeStyle = C.tick; ctx.globalAlpha = .7; ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]);
+        ctx.strokeRect(x0 + 4.5, y + 3.5, colW - 9, h - 7);
+        ctx.restore();
+      }
       const colour = r.st === 'open' ? C.ink : C.faded;
       const baseY = y + ROW_PAD + LH - 7;
-      if (r.st === 'confirmed') {
+      if (sure) {
         ctx.fillStyle = C.tick;
         ctx.font = `700 18px ${SANS}`;
         ctx.fillText('✓', x0 + PAD, baseY);

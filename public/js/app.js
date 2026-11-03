@@ -1,7 +1,7 @@
-import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261103b';
-import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261103b';
-import { createAnagrammer } from './anagram.js?v=20261103b';
-import { renderProgressImage } from './progress-image.js?v=20261103b';
+import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261103d';
+import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261103d';
+import { createAnagrammer } from './anagram.js?v=20261103d';
+import { renderProgressImage } from './progress-image.js?v=20261103d';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -206,11 +206,52 @@ addEventListener('resize', () => libMenuFor && closeLibMenu());
   }, true);
 }
 
-// Add one ipuz text to the library. Returns { id, title, isNew }.
+// Is this the same puzzle as one already in the library? Same grid size and (nearly) the same clues,
+// whatever else differs in the file (answers, title, date, formatting).
+const clueNorm = t => String(t || '').replace(/<[^>]*>/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const clueKeys = m => ['across', 'down'].flatMap(d => m.clues[d].map(c => `${d}|${c.number}|${clueNorm(c.text)}`));
+function findSamePuzzle(model) {
+  const want = new Set(clueKeys(model));
+  if (want.size < 2) return null;
+  for (const [id, rec] of Object.entries(local.puzzles())) {
+    let m;
+    try { m = parseIpuz(rec.raw); } catch { continue; }
+    if (m.width !== model.width || m.height !== model.height) continue;
+    const have = clueKeys(m);
+    const same = have.filter(k => want.has(k)).length;
+    if (same / Math.max(want.size, have.length) >= 0.9) return { id, rec, model: m };
+  }
+  return null;
+}
+// Answers that the new file adds or changes, compared with the copy we have.
+function addsAnswers(newModel, oldModel) {
+  if (!newModel.hasSolution) return false;
+  if (!oldModel.hasSolution) return true;
+  return newModel.cells.some((c, i) => c.solution && c.solution !== oldModel.cells[i]?.solution);
+}
+
+// Add one ipuz text to the library. Returns { id, title, isNew, updated }.
+// A newer file for a puzzle you already have that brings its answers (e.g. the next day's solution)
+// replaces that copy's file, keeping its progress, instead of adding a second copy.
 async function importRaw(raw) {
   const model = parseIpuz(raw);
   const id = await puzzleId(raw);
   if (local.getPuzzle(id)) return { id, title: model.title, isNew: false };
+  const same = findSamePuzzle(model);
+  if (same && addsAnswers(model, same.model)) {
+    const title = same.rec.meta?.title || model.title;
+    const what = same.model.hasSolution ? 'with different answers' : 'with the answers added';
+    if (!confirm(`This is "${title}" ${what}.\n\nUpdate the copy in your library? Your progress is kept.`)) {
+      return { id: same.id, title, isNew: false, declined: true };
+    }
+    const meta = { ...same.rec.meta, title: model.title, author: model.author, publisher: model.publisher, date: model.date,
+      cells: openCellCount(model), rev: Date.now() };
+    local.putPuzzle(same.id, { raw, meta });
+    uploadPuzzle(same.id, { raw, meta });
+    return { id: same.id, title: model.title, isNew: false, updated: true };
+  }
+  // the same puzzle again with nothing new (e.g. the answers file imported twice): don't add a second copy
+  if (same) return { id: same.id, title: same.rec.meta?.title || model.title, isNew: false };
   const meta = { title: model.title, author: model.author, publisher: model.publisher, date: model.date, width: model.width, height: model.height, cells: openCellCount(model), added: Date.now() };
   local.putPuzzle(id, { raw, meta, added: meta.added });
   // seed progress from any state saved in the file / pre-filled cells
@@ -227,7 +268,9 @@ async function importFiles(files) {
   for (const file of files) {
     try {
       const r = await importRaw(await file.text());
-      if (!r.isNew) toast(`"${r.title}" is already in your library`);
+      if (r.updated) toast(`Added the answers to "${r.title}" – Check and Reveal now work`, 4500);
+      else if (r.declined) toast('Not imported');
+      else if (!r.isNew) toast(`"${r.title}" is already in your library`);
       lastId = r.id;
       if (r.isNew) added++;
     } catch (err) {
@@ -249,7 +292,7 @@ async function openShareLink(sid) {
     const r = await importRaw(raw);
     renderLibrary();
     location.replace(`#/p/${r.id}`);
-    toast(r.isNew ? `Added "${r.title}" to your puzzles` : `"${r.title}" is already in your library`);
+    toast(r.isNew ? `Added "${r.title}" to your puzzles` : r.updated ? `Added the answers to "${r.title}"` : `"${r.title}" is already in your library`);
   } catch (e) {
     location.replace('#');
     toast(`Couldn't open that link: ${e.message}`, 6000);

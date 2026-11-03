@@ -1,7 +1,7 @@
-import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261103d';
-import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261103d';
-import { createAnagrammer } from './anagram.js?v=20261103d';
-import { renderProgressImage } from './progress-image.js?v=20261103d';
+import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261103e';
+import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261103e';
+import { createAnagrammer } from './anagram.js?v=20261103e';
+import { renderProgressImage } from './progress-image.js?v=20261103e';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -136,6 +136,20 @@ $('#lib-list').addEventListener('click', e => {
   if (open) location.hash = `#/p/${open.dataset.id}`;
 });
 
+// Save the puzzle's .ipuz file (as it is now, including any Edit puzzle changes) to the device.
+function downloadIpuz(id) {
+  const rec = local.getPuzzle(id);
+  if (!rec) return;
+  const base = (rec.meta?.title || 'crossword').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'crossword';
+  const url = URL.createObjectURL(new Blob([rec.raw], { type: 'application/json' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${base}.ipuz`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  toast(`Downloaded ${base}.ipuz`);
+}
+
 // ---- per-puzzle menu in the library: ⋯ button, long press, or right-click ----
 let libMenuFor = null;
 function openLibMenu(id, x, y) {
@@ -158,6 +172,7 @@ $('#lib-menu').addEventListener('click', e => {
   closeLibMenu();
   if (!act || !id) return;
   if (act === 'share') sharePuzzle(id);
+  if (act === 'download') downloadIpuz(id);
   if (act === 'delete') {
     const title = local.getPuzzle(id)?.meta?.title || 'this puzzle';
     if (confirm(`Delete "${title}" and its progress from all your devices?`)) {

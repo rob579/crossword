@@ -1,7 +1,7 @@
-import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261102a';
-import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261102a';
-import { createAnagrammer } from './anagram.js?v=20261102a';
-import { renderProgressImage } from './progress-image.js?v=20261102a';
+import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261103a';
+import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261103a';
+import { createAnagrammer } from './anagram.js?v=20261103a';
+import { renderProgressImage } from './progress-image.js?v=20261103a';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -26,34 +26,79 @@ function toast(msg, ms = 2600) {
 // ======================================================================
 function openCellCount(model) { return model.cells.filter(c => !c.block && !c.void).length; }
 
-function renderLibrary() {
-  const list = $('#lib-list');
-  const all = Object.entries(local.puzzles())
-    .map(([id, rec]) => ({ id, ...rec }))
-    .sort((a, b) => (b.lastOpened || b.added || 0) - (a.lastOpened || a.added || 0));
-  $('#lib-empty').hidden = all.length > 0;
-  list.innerHTML = '';
-  for (const p of all) {
-    const meta = p.meta || {};
-    const total = meta.cells || 1;
-    const filled = filledCount(local.getProgress(p.id));
-    const pct = Math.min(100, Math.round((filled / total) * 100));
-    const card = document.createElement('div');
-    card.className = 'lib-card';
-    card.innerHTML = `
+// ---- library: sort order and a collapsible "Completed" section ----
+const libPref = (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
+const setLibPref = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+
+function libCard(p) {
+  const meta = p.meta || {};
+  const card = document.createElement('div');
+  card.className = 'lib-card';
+  card.innerHTML = `
       <button class="lib-open" data-id="${p.id}">
         <span class="lib-title"></span>
         <span class="lib-meta"></span>
-        <span class="lib-progress"><span style="width:${pct}%"></span></span>
-        <span class="lib-pct">${meta.solved ? 'Solved ✓' : pct ? pct + '% filled' : 'Not started'}</span>
+        <span class="lib-progress"><span style="width:${p.pct}%"></span></span>
+        <span class="lib-pct">${meta.solved ? 'Solved ✓' : p.complete ? 'Complete' : p.pct ? p.pct + '% filled' : 'Not started'}</span>
       </button>
       <button class="lib-more icon-btn" data-more="${p.id}" aria-label="More options" title="Share or delete">⋯</button>`;
-    $('.lib-title', card).textContent = meta.title || 'Untitled';
-    $('.lib-meta', card).textContent = libraryLine(p);
-    if (meta.solved) card.classList.add('solved');
-    list.appendChild(card);
+  $('.lib-title', card).textContent = meta.title || 'Untitled';
+  $('.lib-meta', card).textContent = libraryLine(p);
+  if (meta.solved || p.complete) card.classList.add('solved');
+  return card;
+}
+
+// Put cards into a container in the chosen order; for "puzzle date", undated puzzles form their own group at the end.
+function addCards(box, items, sort) {
+  const recent = (a, b) => (b.lastOpened || b.added || 0) - (a.lastOpened || a.added || 0);
+  if (sort === 'progress') items.sort((a, b) => b.pct - a.pct || recent(a, b));
+  else if (sort === 'date') items.sort((a, b) => (b.iso || '').localeCompare(a.iso || '') || recent(a, b));
+  else items.sort(recent);
+  let undatedShown = false;
+  for (const p of items) {
+    if (sort === 'date' && !p.iso && !undatedShown && items.some(q => q.iso)) {
+      undatedShown = true;
+      const h = document.createElement('h3');
+      h.className = 'lib-group';
+      h.textContent = 'No date';
+      box.appendChild(h);
+    }
+    box.appendChild(libCard(p));
   }
 }
+
+function renderLibrary() {
+  const list = $('#lib-list');
+  const sort = libPref('cw.libSort', 'recent');
+  $('#lib-sort').value = sort;
+  const all = Object.entries(local.puzzles()).map(([id, rec]) => {
+    const p = { id, ...rec };
+    const total = p.meta?.cells || 1;
+    const filled = filledCount(local.getProgress(id));
+    p.pct = Math.min(100, Math.round((filled / total) * 100));
+    p.complete = filled >= total;               // every square filled
+    p.iso = puzzleDateToIso(puzzleInfo(p).date); // '' when the puzzle has no (readable) date
+    return p;
+  });
+  $('#lib-empty').hidden = all.length > 0;
+  $('#lib-tools').hidden = all.length < 2;
+  list.innerHTML = '';
+  const done = all.filter(p => p.meta?.solved || p.complete);
+  addCards(list, all.filter(p => !done.includes(p)), sort);
+  if (done.length) {
+    const sec = document.createElement('details');
+    sec.className = 'lib-done';
+    sec.open = libPref('cw.libDoneOpen', '0') === '1';
+    sec.innerHTML = `<summary>Completed <span class="lib-done-n">${done.length}</span></summary>`;
+    sec.addEventListener('toggle', () => setLibPref('cw.libDoneOpen', sec.open ? '1' : '0'));
+    const inner = document.createElement('div');
+    inner.className = 'lib-list';
+    addCards(inner, done, sort);
+    sec.appendChild(inner);
+    list.appendChild(sec);
+  }
+}
+$('#lib-sort').addEventListener('change', e => { setLibPref('cw.libSort', e.target.value); renderLibrary(); });
 
 // Setter, publication and date, read from the file itself so they're right for older imports and
 // after an edit synced from another device. Cached per file text.

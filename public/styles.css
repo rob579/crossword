@@ -639,3 +639,22 @@ dialog.sheet.wide { width: min(760px, calc(100% - 16px)); }
 /* settings: the older sync-key option, tucked away under Google sign-in */
 .key-details { margin-top: 14px; }
 .key-details > summary { cursor: pointer; font-size: 14px; color: var(--muted); }
+
+/* library: sort and the Completed section */
+.lib-tools { display: flex; justify-content: flex-end; margin: -6px 0 12px; }
+.lib-tools label { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+.lib-tools select {
+  font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 8px; padding: 6px 28px 6px 10px;
+}
+.lib-group { margin: 10px 2px 0; font: 700 12px var(--font); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.lib-done { margin-top: 8px; }
+.lib-done > summary {
+  list-style: none; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 8px;
+  padding: 10px 4px; font: 700 12px var(--font); letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+}
+.lib-done > summary::-webkit-details-marker { display: none; }
+.lib-done > summary::before { content: "▸"; font-size: 13px; transition: transform .15s; }
+.lib-done[open] > summary::before { transform: rotate(90deg); }
+.lib-done-n { background: var(--line); color: var(--ink); border-radius: 999px; padding: 1px 8px; letter-spacing: 0; font-weight: 600; }
+.lib-done > .lib-list { margin-top: 2px; }

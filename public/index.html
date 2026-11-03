@@ -13,8 +13,8 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <title>Crossword</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20261102a">
-  <script src="js/theme.js?v=20261102a"></script>
+  <link rel="stylesheet" href="styles.css?v=20261103a">
+  <script src="js/theme.js?v=20261103a"></script>
 </head>
 <body data-view="library">
   <header class="topbar">
@@ -37,6 +37,15 @@
         <label class="btn primary">
           Import .ipuz
           <input type="file" id="file-input" accept=".ipuz,.json,application/json,application/x-ipuz" multiple hidden>
+        </label>
+      </div>
+      <div class="lib-tools" id="lib-tools" hidden>
+        <label>Sort by
+          <select id="lib-sort">
+            <option value="recent">Most recent</option>
+            <option value="progress">Completion</option>
+            <option value="date">Puzzle date</option>
+          </select>
         </label>
       </div>
       <div id="lib-list" class="lib-list"></div>
@@ -280,6 +289,6 @@
   <div class="drop-hint">Drop .ipuz files to import</div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="js/app.js?v=20261102a"></script>
+  <script type="module" src="js/app.js?v=20261103a"></script>
 </body>
 </html>

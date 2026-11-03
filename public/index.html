@@ -13,8 +13,8 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <title>Crossword</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20261103a">
-  <script src="js/theme.js?v=20261103a"></script>
+  <link rel="stylesheet" href="styles.css?v=20261103b">
+  <script src="js/theme.js?v=20261103b"></script>
 </head>
 <body data-view="library">
   <header class="topbar">
@@ -42,9 +42,11 @@
       <div class="lib-tools" id="lib-tools" hidden>
         <label>Sort by
           <select id="lib-sort">
-            <option value="recent">Most recent</option>
-            <option value="progress">Completion</option>
-            <option value="date">Puzzle date</option>
+            <option value="recent">Recently opened</option>
+            <option value="progress-desc">Completion: most first</option>
+            <option value="progress-asc">Completion: least first</option>
+            <option value="date-desc">Puzzle date: newest first</option>
+            <option value="date-asc">Puzzle date: oldest first</option>
           </select>
         </label>
       </div>
@@ -289,6 +291,6 @@
   <div class="drop-hint">Drop .ipuz files to import</div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="js/app.js?v=20261103a"></script>
+  <script type="module" src="js/app.js?v=20261103b"></script>
 </body>
 </html>

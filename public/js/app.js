@@ -1,7 +1,7 @@
-import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261103a';
-import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261103a';
-import { createAnagrammer } from './anagram.js?v=20261103a';
-import { renderProgressImage } from './progress-image.js?v=20261103a';
+import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261103b';
+import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261103b';
+import { createAnagrammer } from './anagram.js?v=20261103b';
+import { renderProgressImage } from './progress-image.js?v=20261103b';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -51,12 +51,16 @@ function libCard(p) {
 // Put cards into a container in the chosen order; for "puzzle date", undated puzzles form their own group at the end.
 function addCards(box, items, sort) {
   const recent = (a, b) => (b.lastOpened || b.added || 0) - (a.lastOpened || a.added || 0);
-  if (sort === 'progress') items.sort((a, b) => b.pct - a.pct || recent(a, b));
-  else if (sort === 'date') items.sort((a, b) => (b.iso || '').localeCompare(a.iso || '') || recent(a, b));
-  else items.sort(recent);
+  const [key, dir] = sort.split('-');
+  const flip = dir === 'asc' ? -1 : 1;
+  if (key === 'progress') items.sort((a, b) => flip * (b.pct - a.pct) || recent(a, b));
+  else if (key === 'date') {
+    // dated puzzles in the chosen order; undated ones always last
+    items.sort((a, b) => (!a.iso - !b.iso) || flip * (b.iso || '').localeCompare(a.iso || '') || recent(a, b));
+  } else items.sort(recent);
   let undatedShown = false;
   for (const p of items) {
-    if (sort === 'date' && !p.iso && !undatedShown && items.some(q => q.iso)) {
+    if (key === 'date' && !p.iso && !undatedShown && items.some(q => q.iso)) {
       undatedShown = true;
       const h = document.createElement('h3');
       h.className = 'lib-group';
@@ -69,7 +73,9 @@ function addCards(box, items, sort) {
 
 function renderLibrary() {
   const list = $('#lib-list');
-  const sort = libPref('cw.libSort', 'recent');
+  let sort = libPref('cw.libSort', 'recent');
+  if (sort === 'progress' || sort === 'date') sort += '-desc'; // older saved choices
+  if (![...$('#lib-sort').options].some(o => o.value === sort)) sort = 'recent';
   $('#lib-sort').value = sort;
   const all = Object.entries(local.puzzles()).map(([id, rec]) => {
     const p = { id, ...rec };

@@ -1,7 +1,7 @@
-import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261105a';
-import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261105a';
-import { createAnagrammer } from './anagram.js?v=20261105a';
-import { renderProgressImage } from './progress-image.js?v=20261105a';
+import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261105b';
+import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261105b';
+import { createAnagrammer } from './anagram.js?v=20261105b';
+import { renderProgressImage } from './progress-image.js?v=20261105b';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -39,12 +39,14 @@ function libCard(p) {
         <span class="lib-title"></span>
         <span class="lib-meta"></span>
         <span class="lib-progress"><span style="width:${p.pct}%"></span></span>
-        <span class="lib-pct">${meta.solved ? 'Solved ✓' : p.complete ? 'Complete' : p.pct ? p.pct + '% filled' : 'Not started'}</span>
+        <span class="lib-pct">${meta.solved ? 'Solved ✓' : p.complete ? (puzzleInfo(p).hasSolution ? 'Not quite right' : 'Complete') : p.pct ? p.pct + '% filled' : 'Not started'}</span>
       </button>
       <button class="lib-more icon-btn" data-more="${p.id}" aria-label="More options" title="Share or delete">⋯</button>`;
   $('.lib-title', card).textContent = meta.title || 'Untitled';
   $('.lib-meta', card).textContent = libraryLine(p);
-  if (meta.solved || p.complete) card.classList.add('solved');
+  // full grid: green = right, purple = no answers to check against, red = doesn't match the answers
+  if (meta.solved) card.classList.add('solved');
+  else if (p.complete) card.classList.add(puzzleInfo(p).hasSolution ? 'notquite' : 'complete');
   return card;
 }
 
@@ -113,7 +115,7 @@ function puzzleInfo(rec) {
   const hit = infoCache.get(rec.id);
   if (hit && hit.raw === rec.raw) return hit.info;
   let info;
-  try { const m = parseIpuz(rec.raw); info = { author: m.author, publisher: m.publisher, date: m.date }; }
+  try { const m = parseIpuz(rec.raw); info = { author: m.author, publisher: m.publisher, date: m.date, hasSolution: m.hasSolution }; }
   catch { info = { author: rec.meta?.author || '', publisher: rec.meta?.publisher || '', date: rec.meta?.date || '' }; }
   infoCache.set(rec.id, { raw: rec.raw, info });
   return info;
@@ -706,6 +708,7 @@ function checkComplete(announce = true) {
   let solved = false;
   if (full && model.hasSolution) solved = model.cells.every((c, i) => c.block || c.void || !c.solution || valueAt(i) === c.solution);
   $('#grid').classList.toggle('solved', solved);
+  $('#grid').classList.toggle('complete', full && !model.hasSolution); // finished, correctness unknown
   const rec = local.getPuzzle(cur.id);
   if (rec && !!rec.meta?.solved !== solved) local.putPuzzle(cur.id, { meta: { ...rec.meta, solved } });
   if (!full && cur.lastVerdict) setVerdict(null); // no longer finished: the next finish gets a fresh message

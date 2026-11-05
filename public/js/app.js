@@ -1,7 +1,7 @@
-import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261105b';
-import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261105b';
-import { createAnagrammer } from './anagram.js?v=20261105b';
-import { renderProgressImage } from './progress-image.js?v=20261105b';
+import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261105c';
+import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261105c';
+import { createAnagrammer } from './anagram.js?v=20261105c';
+import { renderProgressImage } from './progress-image.js?v=20261105c';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -91,7 +91,8 @@ function renderLibrary() {
   $('#lib-empty').hidden = all.length > 0;
   $('#lib-tools').hidden = all.length < 2;
   list.innerHTML = '';
-  const done = all.filter(p => p.meta?.solved || p.complete);
+  // Completed = solved, or full with no answers to check, or full-but-wrong that you moved there yourself
+  const done = all.filter(p => p.meta?.solved || (p.complete && (!puzzleInfo(p).hasSolution || movedToCompleted(p.id))));
   addCards(list, all.filter(p => !done.includes(p)), sort);
   if (done.length) {
     const sec = document.createElement('details');
@@ -154,9 +155,28 @@ function downloadIpuz(id) {
 
 // ---- per-puzzle menu in the library: ⋯ button, long press, or right-click ----
 let libMenuFor = null;
+const movedToCompleted = id => !!local.getProgress(id).flags?.completed?.on;
+function setMovedToCompleted(id, on) {
+  const p = local.getProgress(id);
+  const t = Date.now();
+  p.flags = { ...(p.flags || {}), completed: { on, t } };
+  p.updatedAt = t;
+  local.putProgress(id, p);
+  local.markDirty(id);
+  pushProgress(id, { total: p.total });
+}
+// a full grid that doesn't match its answers ("Not quite right")
+function notQuiteRight(id) {
+  const rec = local.getPuzzle(id);
+  if (!rec || rec.meta?.solved || !puzzleInfo({ id, ...rec }).hasSolution) return false;
+  return filledCount(local.getProgress(id)) >= (rec.meta?.cells || Infinity);
+}
 function openLibMenu(id, x, y) {
   const m = $('#lib-menu');
   libMenuFor = id;
+  const nq = notQuiteRight(id), moved = movedToCompleted(id);
+  $('[data-lib-act="to-completed"]').hidden = !nq || moved;
+  $('[data-lib-act="from-completed"]').hidden = !nq || !moved;
   m.hidden = false;
   const w = m.offsetWidth, h = m.offsetHeight;
   m.style.left = `${Math.max(8, Math.min(x - w, innerWidth - w - 8))}px`;
@@ -175,6 +195,11 @@ $('#lib-menu').addEventListener('click', e => {
   if (!act || !id) return;
   if (act === 'share') sharePuzzle(id);
   if (act === 'download') downloadIpuz(id);
+  if (act === 'to-completed' || act === 'from-completed') {
+    setMovedToCompleted(id, act === 'to-completed');
+    renderLibrary();
+    toast(act === 'to-completed' ? 'Moved to Completed' : 'Moved back to your puzzles');
+  }
   if (act === 'delete') {
     const title = local.getPuzzle(id)?.meta?.title || 'this puzzle';
     if (confirm(`Delete "${title}" and its progress from all your devices?`)) {

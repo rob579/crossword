@@ -29,7 +29,12 @@ export function mergeProgress(a, b) {
   for (const [k, v] of Object.entries(b?.confirmed || {})) {
     if (!confirmed[k] || (v.t || 0) > (confirmed[k].t || 0)) confirmed[k] = v;
   }
-  return { cells, confirmed, updatedAt: Math.max(a?.updatedAt || 0, b?.updatedAt || 0) };
+  // per-puzzle flags, e.g. { completed: { on, t } } = moved to Completed by hand
+  const flags = { ...(a?.flags || {}) };
+  for (const [k, v] of Object.entries(b?.flags || {})) {
+    if (!flags[k] || (v.t || 0) > (flags[k].t || 0)) flags[k] = v;
+  }
+  return { cells, confirmed, flags, updatedAt: Math.max(a?.updatedAt || 0, b?.updatedAt || 0) };
 }
 
 export function filledCount(progress) {
@@ -193,7 +198,8 @@ export async function pullProgress(id) {
     const lp = local.getProgress(id);
     const merged = mergeProgress(lp, remote);
     const changed = JSON.stringify(merged.cells) !== JSON.stringify(lp.cells)
-      || JSON.stringify(merged.confirmed) !== JSON.stringify(lp.confirmed || {});
+      || JSON.stringify(merged.confirmed) !== JSON.stringify(lp.confirmed || {})
+      || JSON.stringify(merged.flags) !== JSON.stringify(lp.flags || {});
     local.putProgress(id, { ...lp, ...merged, syncedAt: Date.now() });
     return changed ? merged : null;
   } catch (e) { reportError(e); return null; }
@@ -207,7 +213,7 @@ export async function pushProgress(id, { quiet = false, keepalive = false, total
     const merged = await api(`progress/${id}`, {
       method: 'PUT',
       keepalive,
-      body: JSON.stringify({ cells: lp.cells, confirmed: lp.confirmed || {}, updatedAt: lp.updatedAt, total: total || lp.total || 0 }),
+      body: JSON.stringify({ cells: lp.cells, confirmed: lp.confirmed || {}, flags: lp.flags || {}, updatedAt: lp.updatedAt, total: total || lp.total || 0 }),
     });
     const now = local.getProgress(id); // may have changed during the request
     local.putProgress(id, { ...now, ...mergeProgress(now, merged), syncedAt: Date.now() });

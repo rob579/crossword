@@ -13,8 +13,8 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <title>Crossword</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20261105b">
-  <script src="js/theme.js?v=20261105b"></script>
+  <link rel="stylesheet" href="styles.css?v=20261105c">
+  <script src="js/theme.js?v=20261105c"></script>
 </head>
 <body data-view="library">
   <header class="topbar">
@@ -54,6 +54,8 @@
       <div id="lib-menu" class="pop-menu" role="menu" hidden>
         <button type="button" role="menuitem" data-lib-act="share">Share link…</button>
         <button type="button" role="menuitem" data-lib-act="download">Download .ipuz</button>
+        <button type="button" role="menuitem" data-lib-act="to-completed" hidden>Move to Completed</button>
+        <button type="button" role="menuitem" data-lib-act="from-completed" hidden>Move back to puzzles</button>
         <button type="button" role="menuitem" data-lib-act="delete" class="danger">Delete…</button>
       </div>
       <div id="lib-empty" class="lib-empty">
@@ -303,6 +305,6 @@
   <div class="drop-hint">Drop .ipuz files to import</div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="js/app.js?v=20261105b"></script>
+  <script type="module" src="js/app.js?v=20261105c"></script>
 </body>
 </html>

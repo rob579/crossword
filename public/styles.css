@@ -661,3 +661,10 @@ dialog.sheet.wide { width: min(760px, calc(100% - 16px)); }
 
 /* confirmed with help (some letters revealed): dotted outline */
 .clue.assisted { outline: 1.5px dashed color-mix(in srgb, var(--solved) 75%, transparent); outline-offset: -4px; border-radius: 8px; }
+
+/* finished-grid message */
+dialog.result-dlg { width: min(380px, calc(100% - 32px)); text-align: center; margin-top: 18vh; }
+.result-dlg .result-icon { font-size: 44px; line-height: 1; margin: 4px 0 8px; }
+.result-dlg h2 { margin: 0 0 6px; font: 600 22px var(--serif); }
+.result-dlg p { margin: 0 0 6px; }
+.result-dlg .dlg-actions { justify-content: center; }

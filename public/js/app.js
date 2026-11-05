@@ -1,7 +1,7 @@
-import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261103f';
-import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261103f';
-import { createAnagrammer } from './anagram.js?v=20261103f';
-import { renderProgressImage } from './progress-image.js?v=20261103f';
+import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261105a';
+import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261105a';
+import { createAnagrammer } from './anagram.js?v=20261105a';
+import { renderProgressImage } from './progress-image.js?v=20261105a';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -389,6 +389,17 @@ function openPuzzle(id) {
   sizeGrid();
   cur.wasFull = filledCount(progress) >= total;
   update();
+  // a finished grid that hasn't been judged in its current state yet (e.g. the answers were added
+  // after you finished): say how it went now. Puzzles without answers are just noted quietly.
+  {
+    let stored = null;
+    try { stored = localStorage.getItem(verdictKey(id)); } catch {}
+    cur.lastVerdict = stored;
+    const full = model.cells.every((c, i) => c.block || c.void || valueAt(i));
+    const verdict = !full ? null : !model.hasSolution ? 'complete' : $('#grid').classList.contains('solved') ? 'solved' : 'wrong';
+    if (verdict && verdict !== stored && verdict !== 'complete') setTimeout(() => cur?.id === id && showVerdict(verdict), 300);
+    setVerdict(verdict);
+  }
 
   pullProgress(id).then(merged => { if (merged && cur?.id === id) { cur.progress = local.getProgress(id); paintLetters(); } });
 }
@@ -697,13 +708,41 @@ function checkComplete(announce = true) {
   $('#grid').classList.toggle('solved', solved);
   const rec = local.getPuzzle(cur.id);
   if (rec && !!rec.meta?.solved !== solved) local.putPuzzle(cur.id, { meta: { ...rec.meta, solved } });
-  if (announce && full && !cur.wasFull) {
-    if (!model.hasSolution) toast('Grid complete!');
-    else if (solved) toast('🎉 Solved! Nicely done.', 4000);
-    else toast("Grid's full, but something isn't right yet.", 3500);
+  if (!full && cur.lastVerdict) setVerdict(null); // no longer finished: the next finish gets a fresh message
+  // Once the grid is full, say how it went – again whenever that changes (e.g. fixing the last
+  // wrong letter), but not every time you open it or retype a letter.
+  if (announce) {
+    const verdict = !full ? null : !model.hasSolution ? 'complete' : solved ? 'solved' : 'wrong';
+    if (verdict && verdict !== cur.lastVerdict) showVerdict(verdict);
+    setVerdict(verdict);
   }
-  if (announce) cur.wasFull = full;
 }
+
+const verdictKey = id => `cw.verdict.${id}`;
+function setVerdict(v) {
+  cur.lastVerdict = v;
+  try { v ? localStorage.setItem(verdictKey(cur.id), v) : localStorage.removeItem(verdictKey(cur.id)); } catch {}
+}
+function showVerdict(v) {
+  if (v === 'complete') { toast('Grid complete!'); return; }
+  const ok = v === 'solved';
+  const helped = ok ? cur.model.cells.filter((c, i) => cur.progress.cells[i]?.f === 'r' && valueAt(i)).length : 0;
+  $('#dlg-result').classList.toggle('wrong', !ok);
+  $('#result-icon').textContent = ok ? '🎉' : '🤔';
+  $('#result-title').textContent = ok ? 'Solved!' : "Something's not right here…";
+  $('#result-text').textContent = ok
+    ? `Nicely done – every letter is right${helped ? ` (with ${helped} revealed)` : ''}.`
+    : "The grid is full, but it doesn't match the answers yet.";
+  $('#btn-result-check').hidden = ok;
+  $('#btn-result-ok').textContent = ok ? 'Done' : 'Keep looking';
+  if (!$('#dlg-result').open) $('#dlg-result').showModal();
+}
+$('#btn-result-ok').addEventListener('click', () => $('#dlg-result').close());
+$('#btn-result-check').addEventListener('click', () => {
+  $('#dlg-result').close();
+  $('.menu-items [data-act="check:all"]')?.click(); // marks the wrong letters, as Check → Puzzle does
+});
+
 
 function selectCell(i, dir) {
   const c = cur.model.cells[i];

@@ -13,8 +13,8 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <title>Crossword</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20261103f">
-  <script src="js/theme.js?v=20261103f"></script>
+  <link rel="stylesheet" href="styles.css?v=20261105a">
+  <script src="js/theme.js?v=20261105a"></script>
 </head>
 <body data-view="library">
   <header class="topbar">
@@ -195,6 +195,17 @@
     </div>
   </dialog>
 
+  <!-- Finished grid: solved, or not quite -->
+  <dialog id="dlg-result" class="sheet result-dlg">
+    <div class="result-icon" id="result-icon" aria-hidden="true"></div>
+    <h2 id="result-title"></h2>
+    <p id="result-text" class="muted"></p>
+    <div class="dlg-actions">
+      <button type="button" class="btn ghost" id="btn-result-check">Show mistakes</button>
+      <button type="button" class="btn primary" id="btn-result-ok">Done</button>
+    </div>
+  </dialog>
+
   <!-- Share progress -->
   <dialog id="dlg-progress" class="sheet wide">
     <div class="dlg-head">
@@ -292,6 +303,6 @@
   <div class="drop-hint">Drop .ipuz files to import</div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="js/app.js?v=20261103f"></script>
+  <script type="module" src="js/app.js?v=20261105a"></script>
 </body>
 </html>

@@ -20,7 +20,7 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
       <label><input type="radio" name="ana-mode" value="odd"><span>Odd letters</span></label>
       <label><input type="radio" name="ana-mode" value="even"><span>Even letters</span></label>
     </div>
-    <label class="ana-join" hidden><input type="checkbox"> Treat selected words as one</label>
+    <label class="ana-join" hidden><input type="checkbox" checked> Treat selected words as one</label>
     <label class="ana-label" for="ana-input">Letters</label>
     <input id="ana-input" class="ana-input" type="text" autocomplete="off" autocorrect="off"
       autocapitalize="characters" spellcheck="false" placeholder="Type letters…" maxlength="40">
@@ -44,7 +44,7 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
   const modesEl = root.querySelector('.ana-modes');
   const joinEl = root.querySelector('.ana-join');
   let mode = 'all'; // which letters a tapped word gives: all, odd (1st, 3rd…) or even (2nd, 4th…)
-  let joined = false; // count odd/even along all the selected words instead of within each one
+  let joined = true; // count odd/even along all the selected words instead of within each one
   let loadedFromWords = ''; // the letters currently loaded from clue words
 
   let pattern = null;     // { label, clue, letters[], fixed[], breaks[] }
@@ -472,8 +472,8 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
         modesEl.hidden = !p?.clue;
         mode = 'all';
         modesEl.querySelector('input[value="all"]').checked = true;
-        joined = false;
-        joinEl.querySelector('input').checked = false;
+        joined = true;
+        joinEl.querySelector('input').checked = true;
         joinEl.hidden = true;
         loadedFromWords = '';
         clueTextEl.innerHTML = '';

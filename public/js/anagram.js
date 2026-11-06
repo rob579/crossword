@@ -345,6 +345,10 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
   // Swap the letters the clue words gave for a fresh set (after a tap or a change of mode).
   function reloadWords() {
     removeLetters(lettersOf(loadedFromWords));
+    // take the old clue letters off the board first, so the new set is laid out in order
+    // (otherwise tiles that happen to be in both sets keep their old squares and scramble it)
+    loadedFromWords = '';
+    setFromInput();
     const picks = wordPicks();
     let add = '';
     for (const [w, used] of picks) add += lettersOf(w.dataset.letters).filter((_, j) => used.has(j)).join('');

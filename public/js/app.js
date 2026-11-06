@@ -1,8 +1,8 @@
-import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261106e';
-import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261106e';
-import { createAnagrammer } from './anagram.js?v=20261106e';
-import { renderProgressImage } from './progress-image.js?v=20261106e';
-import { lookup, answerPhrase, wiktionaryUrl, googleUrl } from './define.js?v=20261106e';
+import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261106f';
+import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261106f';
+import { createAnagrammer } from './anagram.js?v=20261106f';
+import { renderProgressImage } from './progress-image.js?v=20261106f';
+import { lookup, answerPhrase, wiktionaryUrl, googleUrl } from './define.js?v=20261106f';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];

@@ -20,6 +20,7 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
       <label><input type="radio" name="ana-mode" value="odd"><span>Odd letters</span></label>
       <label><input type="radio" name="ana-mode" value="even"><span>Even letters</span></label>
     </div>
+    <label class="ana-join" hidden><input type="checkbox"> Treat selected words as one</label>
     <label class="ana-label" for="ana-input">Letters</label>
     <input id="ana-input" class="ana-input" type="text" autocomplete="off" autocorrect="off"
       autocapitalize="characters" spellcheck="false" placeholder="Type letters…" maxlength="40">
@@ -41,7 +42,10 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
   const clueEl = root.querySelector('.ana-clue');
   const clueTextEl = root.querySelector('.ana-clue-text');
   const modesEl = root.querySelector('.ana-modes');
+  const joinEl = root.querySelector('.ana-join');
   let mode = 'all'; // which letters a tapped word gives: all, odd (1st, 3rd…) or even (2nd, 4th…)
+  let joined = false; // count odd/even along all the selected words instead of within each one
+  let loadedFromWords = ''; // the letters currently loaded from clue words
 
   let pattern = null;     // { label, clue, letters[], fixed[], breaks[] }
   let lastClueKey = null;
@@ -292,14 +296,13 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
     if (act === 'clear') {
       input.value = ''; place = []; spare = []; selected = null;
       for (const [s, ch] of [...locked]) if (!(pattern?.fixed[s] && pattern.letters[s] === ch)) locked.delete(s);
-      clueTextEl.querySelectorAll('.ana-word.on').forEach(w => { w.classList.remove('on'); delete w.dataset.added; paintWord(w); });
+      clueTextEl.querySelectorAll('.ana-word.on').forEach(w => { w.classList.remove('on'); paintWord(w); });
+      loadedFromWords = '';
       setFromInput();
     }
   });
   input.addEventListener('input', () => setFromInput());
 
-  // The letters a word gives in the current mode (counted within the word, ignoring punctuation).
-  const pickLetters = (word, m = mode) => lettersOf(word).filter((_, k) => m === 'all' || (m === 'odd' ? k % 2 === 0 : k % 2 === 1));
   const removeLetters = letters => {
     const v = input.value.toUpperCase().split('');
     for (const ch of letters) {
@@ -308,50 +311,60 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
     }
     input.value = v.join('');
   };
+  // Which letters each selected word gives: all of them, or odd/even counted within each word –
+  // or, with "Treat selected words as one", counted along all the selected words in clue order.
+  function wordPicks() {
+    const picks = new Map(); // word button -> Set of letter positions used
+    let k = 0;
+    for (const w of clueTextEl.querySelectorAll('.ana-word.on')) {
+      const n = lettersOf(w.dataset.letters).length;
+      const used = new Set();
+      for (let j = 0; j < n; j++) {
+        const pos = joined ? k + j : j;
+        if (mode === 'all' || (mode === 'odd' ? pos % 2 === 0 : pos % 2 === 1)) used.add(j);
+      }
+      k += n;
+      picks.set(w, used);
+    }
+    return picks;
+  }
   // Show which letters of a selected word went in (the others are faded).
-  function paintWord(w) {
-    const on = w.classList.contains('on');
+  function paintWord(w, used) {
     let k = 0;
     w.innerHTML = '';
     for (const ch of w.dataset.letters) {
       const sp = document.createElement('span');
       sp.textContent = ch;
       if (/[A-Za-z]/.test(ch)) {
-        const used = mode === 'all' || (mode === 'odd' ? k % 2 === 0 : k % 2 === 1);
-        if (on && !used) sp.className = 'skip';
+        if (used && !used.has(k)) sp.className = 'skip';
         k++;
       }
       w.appendChild(sp);
     }
   }
+  // Swap the letters the clue words gave for a fresh set (after a tap or a change of mode).
+  function reloadWords() {
+    removeLetters(lettersOf(loadedFromWords));
+    const picks = wordPicks();
+    let add = '';
+    for (const [w, used] of picks) add += lettersOf(w.dataset.letters).filter((_, j) => used.has(j)).join('');
+    loadedFromWords = add;
+    input.value = (input.value + add).toUpperCase();
+    for (const w of clueTextEl.querySelectorAll('.ana-word')) paintWord(w, picks.get(w));
+    joinEl.hidden = mode === 'all';
+    setFromInput();
+    // after a reload, letters waiting in "Not placed" go into any empty squares
+    for (const s2 of freeSlots()) if (!place[s2] && spare.length) place[s2] = spare.shift();
+    render();
+  }
   clueTextEl.addEventListener('click', e => {
     const w = e.target.closest('.ana-word');
     if (!w) return;
-    if (w.classList.toggle('on')) {
-      const add = pickLetters(w.dataset.letters);
-      w.dataset.added = add.join('');
-      input.value = (input.value + add.join('')).toUpperCase();
-    } else {
-      removeLetters(lettersOf(w.dataset.added || ''));
-      delete w.dataset.added;
-    }
-    paintWord(w);
-    setFromInput();
+    w.classList.toggle('on');
+    reloadWords();
   });
-  // Changing All / Odd / Even re-loads the words already selected the new way.
-  modesEl.addEventListener('change', e => {
-    mode = e.target.value;
-    for (const w of clueTextEl.querySelectorAll('.ana-word')) {
-      if (w.classList.contains('on')) {
-        removeLetters(lettersOf(w.dataset.added || ''));
-        const add = pickLetters(w.dataset.letters);
-        w.dataset.added = add.join('');
-        input.value = (input.value + add.join('')).toUpperCase();
-      }
-      paintWord(w);
-    }
-    setFromInput();
-  });
+  modesEl.addEventListener('change', e => { mode = e.target.value; reloadWords(); });
+  joinEl.querySelector('input').addEventListener('change', e => { joined = e.target.checked; reloadWords(); });
 
   // ---------- drag, tap-to-swap, press-and-hold ----------
   const posAt = (x, y) => [...board.querySelectorAll('[data-pos]')].find(t => {
@@ -459,6 +472,10 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
         modesEl.hidden = !p?.clue;
         mode = 'all';
         modesEl.querySelector('input[value="all"]').checked = true;
+        joined = false;
+        joinEl.querySelector('input').checked = false;
+        joinEl.hidden = true;
+        loadedFromWords = '';
         clueTextEl.innerHTML = '';
         for (const part of (p?.clue || '').split(/(\s+)/)) {
           if (!part) continue;

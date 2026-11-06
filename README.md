@@ -14,7 +14,7 @@ A personal crossword solver. Import `.ipuz` files, solve them in the browser, an
   - On touch devices an on-screen keyboard is shown, so the phone's own keyboard never covers the grid.
   - Check / Reveal (letter, word, puzzle) when the file includes a solution; Clear letter / word / puzzle.
 - **Share links** – *Share* (or ⋯ → *Share link…* on a phone) creates a link to the puzzle. Anyone who opens it gets a blank copy in their own library; your answers stay private. Creating a link needs sync turned on; opening one doesn't.
-- **Anagrammer** – type letters, then drag tiles around, tap two tiles to swap them, or hit *Shuffle*. It also shows the current answer's pattern (letters you've already got) for reference.
+- **WordPlay** (the anagrammer, *WP* button) – tap clue words to load all, odd or even letters, or type letters, then drag tiles around, tap two tiles to swap them, or hit *Shuffle*. It also shows the current answer's pattern (letters you've already got) for reference.
 
 ## Branches
 

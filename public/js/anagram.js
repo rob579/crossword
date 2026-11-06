@@ -1,4 +1,4 @@
-// Anagrammer.
+// WordPlay (the anagrammer).
 // Letters are loaded by tapping clue words or typing, then arranged on an
 // "answer board" laid out like the answer: one square per letter, split into
 // words / hyphenated parts. Each tile sits in a particular square, so gaps can
@@ -14,6 +14,11 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
     <div class="ana-clue" hidden>
       <div class="ana-clue-text"></div>
       <p class="ana-hint">Tap words to load their letters (tap again to remove).</p>
+    </div>
+    <div class="seg ana-modes" role="radiogroup" aria-label="Which letters to load" hidden>
+      <label><input type="radio" name="ana-mode" value="all" checked><span>All letters</span></label>
+      <label><input type="radio" name="ana-mode" value="odd"><span>Odd letters</span></label>
+      <label><input type="radio" name="ana-mode" value="even"><span>Even letters</span></label>
     </div>
     <label class="ana-label" for="ana-input">Letters</label>
     <input id="ana-input" class="ana-input" type="text" autocomplete="off" autocorrect="off"
@@ -35,6 +40,8 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
   const lockHint = root.querySelector('.ana-lock-hint');
   const clueEl = root.querySelector('.ana-clue');
   const clueTextEl = root.querySelector('.ana-clue-text');
+  const modesEl = root.querySelector('.ana-modes');
+  let mode = 'all'; // which letters a tapped word gives: all, odd (1st, 3rd…) or even (2nd, 4th…)
 
   let pattern = null;     // { label, clue, letters[], fixed[], breaks[] }
   let lastClueKey = null;
@@ -285,25 +292,63 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
     if (act === 'clear') {
       input.value = ''; place = []; spare = []; selected = null;
       for (const [s, ch] of [...locked]) if (!(pattern?.fixed[s] && pattern.letters[s] === ch)) locked.delete(s);
-      clueTextEl.querySelectorAll('.ana-word.on').forEach(w => w.classList.remove('on'));
+      clueTextEl.querySelectorAll('.ana-word.on').forEach(w => { w.classList.remove('on'); delete w.dataset.added; paintWord(w); });
       setFromInput();
     }
   });
   input.addEventListener('input', () => setFromInput());
 
+  // The letters a word gives in the current mode (counted within the word, ignoring punctuation).
+  const pickLetters = (word, m = mode) => lettersOf(word).filter((_, k) => m === 'all' || (m === 'odd' ? k % 2 === 0 : k % 2 === 1));
+  const removeLetters = letters => {
+    const v = input.value.toUpperCase().split('');
+    for (const ch of letters) {
+      const at = v.lastIndexOf(ch);
+      if (at >= 0) v.splice(at, 1);
+    }
+    input.value = v.join('');
+  };
+  // Show which letters of a selected word went in (the others are faded).
+  function paintWord(w) {
+    const on = w.classList.contains('on');
+    let k = 0;
+    w.innerHTML = '';
+    for (const ch of w.dataset.letters) {
+      const sp = document.createElement('span');
+      sp.textContent = ch;
+      if (/[A-Za-z]/.test(ch)) {
+        const used = mode === 'all' || (mode === 'odd' ? k % 2 === 0 : k % 2 === 1);
+        if (on && !used) sp.className = 'skip';
+        k++;
+      }
+      w.appendChild(sp);
+    }
+  }
   clueTextEl.addEventListener('click', e => {
     const w = e.target.closest('.ana-word');
     if (!w) return;
-    const letters = lettersOf(w.dataset.letters);
     if (w.classList.toggle('on')) {
-      input.value = (input.value + letters.join('')).toUpperCase();
+      const add = pickLetters(w.dataset.letters);
+      w.dataset.added = add.join('');
+      input.value = (input.value + add.join('')).toUpperCase();
     } else {
-      const v = input.value.toUpperCase().split('');
-      for (const ch of letters) {
-        const at = v.lastIndexOf(ch);
-        if (at >= 0) v.splice(at, 1);
+      removeLetters(lettersOf(w.dataset.added || ''));
+      delete w.dataset.added;
+    }
+    paintWord(w);
+    setFromInput();
+  });
+  // Changing All / Odd / Even re-loads the words already selected the new way.
+  modesEl.addEventListener('change', e => {
+    mode = e.target.value;
+    for (const w of clueTextEl.querySelectorAll('.ana-word')) {
+      if (w.classList.contains('on')) {
+        removeLetters(lettersOf(w.dataset.added || ''));
+        const add = pickLetters(w.dataset.letters);
+        w.dataset.added = add.join('');
+        input.value = (input.value + add.join('')).toUpperCase();
       }
-      input.value = v.join('');
+      paintWord(w);
     }
     setFromInput();
   });
@@ -411,6 +456,9 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
         lastClueKey = key;
         input.value = ''; place = []; spare = []; selected = null;
         clueEl.hidden = !p?.clue;
+        modesEl.hidden = !p?.clue;
+        mode = 'all';
+        modesEl.querySelector('input[value="all"]').checked = true;
         clueTextEl.innerHTML = '';
         for (const part of (p?.clue || '').split(/(\s+)/)) {
           if (!part) continue;

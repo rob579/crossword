@@ -679,3 +679,8 @@ dialog.result-dlg { width: min(380px, calc(100% - 32px)); text-align: center; ma
 .lib-card.complete .lib-progress span { background: var(--complete); }
 .lib-card.notquite .lib-pct { color: var(--wrong); font-weight: 600; }
 .lib-card.notquite .lib-progress span { background: var(--wrong); }
+
+/* WordPlay: All / Odd / Even letters */
+.ana-modes { margin-top: -2px; }
+.ana-modes span { font-size: 13.5px; padding: 7px 4px; }
+.ana-word .skip { opacity: .35; }

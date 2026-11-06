@@ -1,7 +1,8 @@
-import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261106d';
-import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261106d';
-import { createAnagrammer } from './anagram.js?v=20261106d';
-import { renderProgressImage } from './progress-image.js?v=20261106d';
+import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261106e';
+import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261106e';
+import { createAnagrammer } from './anagram.js?v=20261106e';
+import { renderProgressImage } from './progress-image.js?v=20261106e';
+import { lookup, answerPhrase, wiktionaryUrl, googleUrl } from './define.js?v=20261106e';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -673,7 +674,9 @@ function update() {
     $('#cluebar').classList.toggle('confirmed', isConfirmed(cl.id) && clueComplete(cl));
     const showEnum = !hasEnum(cl.text);
     $('#cluebar-text').innerHTML = `${clueHtml(cl.text) || '<em class="muted">No clue</em>'}${showEnum ? ` <span class="enum">(${clueHtml(String(enumTxt))})</span>` : ''}`;
+    $('#cluebar-define').hidden = !activeWordCells().every(i => valueAt(i));
   } else {
+    $('#cluebar-define').hidden = true;
     $('#cluebar-num').textContent = '';
     $('#cluebar-text').textContent = '';
   }
@@ -1047,8 +1050,71 @@ $('#view-solver').addEventListener('click', e => {
     saveEditGrid();
   } else if (act === 'notes') {
     alert(model.notes);
+  } else if (act === 'define') {
+    openDefine();
   }
 });
+
+// ---- dictionary ----
+// The finished answer for the current clue, split into words using its enumeration ("3,4" → "one quarter").
+function currentAnswer() {
+  const cl = activeClue();
+  const cells = activeWordCells();
+  if (!cl || !cells.length || !cells.every(i => valueAt(i))) return null;
+  const letters = cells.map(i => valueAt(i)).join('');
+  const en = parseEnumeration(cl);
+  return answerPhrase(letters, en && en.total === letters.length ? en.breaks : []);
+}
+
+const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+let defineSeq = 0;
+async function openDefine() {
+  const phrase = currentAnswer();
+  if (!phrase) return;
+  const seq = ++defineSeq;
+  const body = $('#define-body');
+  $('#define-word').textContent = phrase.toUpperCase();
+  body.innerHTML = '<p class="muted">Looking it up…</p>';
+  const links = (t) => `Look up <strong>${esc(t)}</strong> on <a href="${wiktionaryUrl(t)}" target="_blank" rel="noopener">Wiktionary</a> · <a href="${googleUrl(t)}" target="_blank" rel="noopener">Google</a>`;
+  $('#define-links').innerHTML = links(phrase);
+  if (!$('#dlg-define').open) $('#dlg-define').showModal();
+
+  // The whole answer first; for a phrase nobody lists, each word on its own.
+  const parts = phrase.split(/[ -]/).filter(Boolean);
+  const terms = [phrase];
+  let results;
+  try {
+    let r = await lookup(phrase);
+    if (!r && parts.length > 1 && phrase.includes('-')) r = await lookup(phrase.replace(/-/g, ' ')) || await lookup(phrase.replace(/-/g, ''));
+    results = [[phrase, r]];
+    if (!r && parts.length > 1) {
+      results = [];
+      for (const w of parts) { results.push([w, await lookup(w).catch(() => null)]); terms.push(w); }
+    }
+  } catch {
+    if (seq !== defineSeq) return;
+    body.innerHTML = `<p>Couldn't reach the dictionary. Check your connection, or try the links below.</p>`;
+    return;
+  }
+  if (seq !== defineSeq) return;
+  const found = results.filter(([, r]) => r);
+  if (!found.length) {
+    body.innerHTML = `<p>No definition found for <strong>${esc(phrase)}</strong>. It may be a name, an abbreviation or a rare word – the links below search further.</p>`;
+    return;
+  }
+  const many = results.length > 1;
+  body.innerHTML = (many ? `<p class="muted">No entry for the whole phrase, so here are the words on their own.</p>` : '') + results.map(([w, r]) => `
+    <section class="define-entry">
+      ${many || r?.term.toLowerCase() !== phrase ? `<h3>${esc(r?.term || w)}</h3>` : ''}
+      ${r ? r.senses.map(s => `
+        ${s.pos ? `<div class="define-pos">${esc(s.pos)}</div>` : ''}
+        <ol>${s.defs.map(d => `<li>${esc(d)}</li>`).join('')}</ol>`).join('')
+        + `<div class="define-src muted">From <a href="${r.url}" target="_blank" rel="noopener">${esc(r.source)}</a></div>`
+      : `<p class="muted">Not found.</p>`}
+    </section>`).join('');
+  if (many) $('#define-links').innerHTML = [...new Set(terms)].map(links).join('<br>');
+}
+$('#btn-define-close').addEventListener('click', () => $('#dlg-define').close());
 
 // ---- share link ----
 async function sharePuzzle(id = cur?.id) {

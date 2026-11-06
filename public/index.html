@@ -13,8 +13,8 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <title>Crossword</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20261106d">
-  <script src="js/theme.js?v=20261106d"></script>
+  <link rel="stylesheet" href="styles.css?v=20261106e">
+  <script src="js/theme.js?v=20261106e"></script>
 </head>
 <body data-view="library">
   <header class="topbar">
@@ -143,6 +143,7 @@
               <span class="cluebar-num" id="cluebar-num"></span>
               <span class="cluebar-text" id="cluebar-text"></span>
             </div>
+            <button type="button" class="cluebar-define" id="cluebar-define" data-act="define" hidden title="Look up this answer in the dictionary" aria-label="Define this answer">Define</button>
             <button type="button" class="cluebar-nav" id="cluebar-next" aria-label="Next clue">›</button>
           </div>
           <div class="edit-bar" id="edit-bar" hidden>
@@ -179,6 +180,16 @@
       <button type="button" class="icon-btn" id="btn-anagram-close" aria-label="Close">✕</button>
     </div>
     <div id="anagram-body" class="anagram"></div>
+  </dialog>
+
+  <!-- Dictionary -->
+  <dialog id="dlg-define" class="sheet">
+    <div class="dlg-head">
+      <h2 id="define-word"></h2>
+      <button type="button" class="icon-btn" id="btn-define-close" aria-label="Close">✕</button>
+    </div>
+    <div id="define-body" class="define-body"></div>
+    <p class="define-links muted" id="define-links"></p>
   </dialog>
 
   <!-- Share -->
@@ -305,6 +316,6 @@
   <div class="drop-hint">Drop .ipuz files to import</div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="js/app.js?v=20261106d"></script>
+  <script type="module" src="js/app.js?v=20261106e"></script>
 </body>
 </html>

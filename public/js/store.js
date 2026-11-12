@@ -10,6 +10,8 @@ const LS = {
   dirty: 'cw.dirty',
   signedIn: 'cw.signedIn', // '1' = syncing via Google sign-in
   email: 'cw.email',
+  lastSync: 'cw.lastSync',   // when this device last started a full sync
+  syncFails: 'cw.syncFails', // full syncs that have failed in a row
 };
 
 const read = (k, def) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } };
@@ -132,13 +134,48 @@ export function signOutRemote() {
   fetch('/cdn-cgi/access/logout', { credentials: 'same-origin', redirect: 'manual' }).catch(() => {});
 }
 
+// Automatic syncs (opening the app, coming back to its tab, the connection returning)
+// are rate-limited so a device can never hammer the server, whatever keeps waking it:
+// at most one every AUTO_MIN_MS, and after failures the gap doubles up to AUTO_MAX_MS.
+// The times are kept in localStorage so reloading the page doesn't get round it.
+// A sync the person asks for (tapping the sync pill, signing in) always runs.
+const AUTO_MIN_MS = 30 * 1000;
+const AUTO_MAX_MS = 5 * 60 * 1000;
+const num = k => { try { return Number(localStorage.getItem(k)) || 0; } catch { return 0; } };
+const setNum = (k, v) => { try { localStorage.setItem(k, String(v)); } catch {} };
+function autoWait() {
+  const last = num(LS.lastSync), now = Date.now();
+  if (!last || last > now) return 0; // never synced, or the clock went backwards
+  const gap = Math.min(AUTO_MAX_MS, AUTO_MIN_MS * 2 ** Math.min(num(LS.syncFails), 8));
+  return Math.max(0, last + gap - now);
+}
+let autoTimer = null;
+
 // Full sync of library + progress. onChange is called if anything local changed.
+// auto: true for syncs the app starts by itself (see above).
 let syncing = null;
-export function syncAll(onChange) {
+export function syncAll(onChange, { auto = false } = {}) {
   if (syncing) return syncing;
+  if (auto && local.syncOn()) {
+    const wait = autoWait();
+    if (wait > 0) {
+      // too soon: run once when the wait is over (if the app is still on screen)
+      if (!autoTimer) autoTimer = setTimeout(() => {
+        autoTimer = null;
+        if (typeof document === 'undefined' || document.visibilityState === 'visible') syncAll(onChange, { auto: true });
+      }, wait + 50);
+      if (status.state === 'off') {
+        if (num(LS.syncFails)) setStatus('error', 'Sync error – will try again shortly (tap to retry now)');
+        else setStatus('ok', 'Synced');
+      }
+      return Promise.resolve();
+    }
+  }
+  clearTimeout(autoTimer); autoTimer = null;
   syncing = (async () => {
     if (!local.syncOn()) { setStatus('off', 'Sync is off'); return; }
     setStatus('syncing', 'Syncing…');
+    setNum(LS.lastSync, Date.now());
     let changed = false;
     try {
       const remote = await api('puzzles');
@@ -184,8 +221,13 @@ export function syncAll(onChange) {
         }
       }
       for (const id of dirty) await pushProgress(id, { quiet: true });
+      setNum(LS.syncFails, 0);
       setStatus('ok', 'Synced');
-    } catch (e) { reportError(e); }
+    } catch (e) {
+      // being offline isn't a failure of the server, so it doesn't lengthen the wait
+      if (e.code !== 'off' && !(e instanceof TypeError)) setNum(LS.syncFails, num(LS.syncFails) + 1);
+      reportError(e);
+    }
     if (changed && onChange) onChange();
   })().finally(() => { syncing = null; });
   return syncing;
@@ -205,7 +247,9 @@ export async function pullProgress(id) {
   } catch (e) { reportError(e); return null; }
 }
 
-export async function pushProgress(id, { quiet = false, keepalive = false, total = 0 } = {}) {
+// final: this is the last save for now (leaving the puzzle or the page), so the server
+// refreshes the summary other devices see straight away.
+export async function pushProgress(id, { quiet = false, keepalive = false, total = 0, final = false } = {}) {
   if (!local.syncOn()) return;
   const lp = local.getProgress(id);
   if (!quiet) setStatus('syncing', 'Saving…');
@@ -213,7 +257,7 @@ export async function pushProgress(id, { quiet = false, keepalive = false, total
     const merged = await api(`progress/${id}`, {
       method: 'PUT',
       keepalive,
-      body: JSON.stringify({ cells: lp.cells, confirmed: lp.confirmed || {}, flags: lp.flags || {}, updatedAt: lp.updatedAt, total: total || lp.total || 0 }),
+      body: JSON.stringify({ cells: lp.cells, confirmed: lp.confirmed || {}, flags: lp.flags || {}, updatedAt: lp.updatedAt, total: total || lp.total || 0, ...(final ? { final: true } : {}) }),
     });
     const now = local.getProgress(id); // may have changed during the request
     local.putProgress(id, { ...now, ...mergeProgress(now, merged), syncedAt: Date.now() });

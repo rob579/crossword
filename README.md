@@ -37,6 +37,7 @@ public/            static site (no build step)
   js/define.js     dictionary lookups
 functions/api/     Cloudflare Pages Functions (the sync API)
 lib/util.js        shared server helpers
+lib/index.js       per-person index of the library (keeps syncs off KV's list limit)
 samples/mini.ipuz  small test puzzle
 ```
 
@@ -61,6 +62,10 @@ The API rejects every request that isn't signed in (Google) or carrying a sync k
 ### Free tier note
 
 Cloudflare KV's free plan allows 1,000 writes a day. The app batches saves (one write after you pause typing for a few seconds, plus one when you leave the page), so normal solving uses a few dozen writes per puzzle. KV is eventually consistent — changes can take up to about a minute to appear on another device.
+
+The free plan also allows only 1,000 *list* requests a day, so a sync never lists the namespace. Each person has two small index keys (`index:lib` and `index:progress`, see `lib/index.js`) that every write keeps up to date, and a sync reads those. The index is rebuilt from the real keys when it is missing and at most once every six hours per person. While someone is solving, the progress summary in the index is refreshed at most once a minute (and when they leave the puzzle), so most saves are still a single write.
+
+The app also limits itself: automatic syncs (opening the app, returning to its tab, the connection coming back) run at most once every 30 seconds per device, and after a failed sync the wait doubles, up to five minutes. Tapping the sync pill always syncs straight away.
 
 ### Extra people (their own sync key)
 

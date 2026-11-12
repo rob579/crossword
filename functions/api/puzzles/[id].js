@@ -1,4 +1,5 @@
 import { json, validId, pre } from '../../../lib/util.js';
+import { indexDelete } from '../../../lib/index.js';
 
 // GET /api/puzzles/:id -> { raw, meta }
 export async function onRequestGet({ params, env, data }) {
@@ -18,5 +19,6 @@ export async function onRequestDelete({ params, env, data }) {
     kv.delete(`${p}progress:${params.id}`),
     kv.put(`${p}deleted:${params.id}`, String(Date.now()), { metadata: { at: Date.now() } }),
   ]);
+  await indexDelete(kv, p, params.id).catch(() => {});
   return json({ ok: true });
 }

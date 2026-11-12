@@ -1,18 +1,15 @@
-import { json, validId, listAll, pre } from '../../../lib/util.js';
+import { json, validId, pre } from '../../../lib/util.js';
+import { loadIndex, indexPuzzle } from '../../../lib/index.js';
 
 // GET /api/puzzles -> { puzzles: [{id, ...meta}], deleted: [id], progress: {id: {updatedAt, filled, total}} }
 export async function onRequestGet({ env, data }) {
-  const p = pre(data);
-  const kv = env.CROSSWORD_KV;
-  const [puzzles, deleted, progress] = await Promise.all([
-    listAll(kv, `${p}puzzle:`),
-    listAll(kv, `${p}deleted:`),
-    listAll(kv, `${p}progress:`),
-  ]);
+  // Reads the per-person index (lib/index.js) rather than listing the namespace.
+  const { lib, prog } = await loadIndex(env.CROSSWORD_KV, pre(data));
   return json({
-    puzzles: puzzles.map(k => ({ id: k.name.slice(p.length + 7), ...(k.metadata || {}) })),
-    deleted: deleted.map(k => k.name.slice(p.length + 8)),
-    progress: Object.fromEntries(progress.map(k => [k.name.slice(p.length + 9), k.metadata || {}])),
+    puzzles: Object.entries(lib.puzzles).map(([id, meta]) => ({ id, ...meta })),
+    deleted: Object.keys(lib.deleted),
+    progress: Object.fromEntries(Object.entries(prog.progress).map(
+      ([id, s]) => [id, { updatedAt: s.updatedAt, filled: s.filled, total: s.total }])),
   });
 }
 
@@ -34,5 +31,6 @@ export async function onRequestPost({ request, env, data }) {
   const kv = env.CROSSWORD_KV;
   await kv.put(`${p}puzzle:${id}`, raw, { metadata });
   await kv.delete(`${p}deleted:${id}`); // re-importing a deleted puzzle brings it back
+  await indexPuzzle(kv, p, id, JSON.parse(JSON.stringify(metadata))).catch(() => {});
   return json({ ok: true, id });
 }

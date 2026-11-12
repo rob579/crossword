@@ -1,8 +1,8 @@
-import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261106f';
-import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261106f';
-import { createAnagrammer } from './anagram.js?v=20261106f';
-import { renderProgressImage } from './progress-image.js?v=20261106f';
-import { lookup, answerPhrase, wiktionaryUrl, googleUrl } from './define.js?v=20261106f';
+import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261112a';
+import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261112a';
+import { createAnagrammer } from './anagram.js?v=20261112a';
+import { renderProgressImage } from './progress-image.js?v=20261112a';
+import { lookup, answerPhrase, wiktionaryUrl, googleUrl } from './define.js?v=20261112a';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -705,7 +705,7 @@ function flushPush() {
   if (!cur || !pushTimer) return;
   clearTimeout(pushTimer);
   pushTimer = null;
-  pushProgress(cur.id, { keepalive: true, total: cur.total });
+  pushProgress(cur.id, { keepalive: true, total: cur.total, final: true });
 }
 
 function setCells(changes) {
@@ -1530,7 +1530,8 @@ $('#btn-settings').addEventListener('click', openSettings);
 $('#pref-skip').addEventListener('change', e => { prefs.skipFilled = e.target.checked; });
 $('#sync-pill').addEventListener('click', () => {
   const st = $('#sync-pill').dataset.state;
-  if (st === 'off' || st === 'error' || st === 'signin') openSettings();
+  // a rejected key or being signed out needs Settings; any other error is worth a retry
+  if (st === 'off' || st === 'signin' || (st === 'error' && /rejected/i.test($('#sync-pill').title))) openSettings();
   else syncAll(onRemoteChange);
 });
 $('#btn-token-show').addEventListener('click', () => {
@@ -1622,10 +1623,10 @@ function onRemoteChange() {
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') flushPush();
-  else syncAll(onRemoteChange);
+  else syncAll(onRemoteChange, { auto: true });
 });
 window.addEventListener('pagehide', flushPush);
-window.addEventListener('online', () => syncAll(onRemoteChange));
+window.addEventListener('online', () => syncAll(onRemoteChange, { auto: true }));
 // while a puzzle is open, pick up changes from other devices
 setInterval(() => {
   if (!cur || document.visibilityState !== 'visible' || !local.syncOn() || pushTimer) return;
@@ -1655,6 +1656,6 @@ window.addEventListener('hashchange', route);
 $('#btn-home').addEventListener('click', () => { location.hash = ''; });
 
 route();
-syncAll(onRemoteChange);
+syncAll(onRemoteChange, { auto: true });
 // devices that were syncing before per-person keys existed: remember whose key they use
 if (local.token() && local.syncUser() == null) testToken(local.token()).then(r => { if (r.ok) local.setSyncUser(r.user); }).catch(() => {});

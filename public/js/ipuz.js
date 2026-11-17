@@ -47,7 +47,7 @@ export function parseIpuz(text) {
       else if (String(v) === blockVal) cell.block = true;
       else if (String(v) !== emptyVal && String(v) !== '' && String(v) !== '0') cell.label = String(v);
       if (o.value && !cell.block && !cell.void) cell.given = String(o.value).toUpperCase();
-      if (style.shapebg === 'circle') cell.circle = true;
+      if (/circle/i.test(String(style.shapebg || ''))) cell.circle = true;
       if (typeof style.barred === 'string') cell.bars = style.barred.toUpperCase();
       if (style.color != null && !cell.block) {
         const col = String(style.color);
@@ -314,6 +314,27 @@ export function editInfo(raw, info) {
 
 // Flip the given cells between black and white, then renumber the grid
 // conventionally. Returns the updated ipuz text.
+// Add or remove the circle in each listed square (shapebg: "circle" in the cell's style).
+export function editCircles(raw, idxs) {
+  let t = String(raw).trim();
+  if (!t.startsWith('{')) t = t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1);
+  const d = JSON.parse(t);
+  const width = d.dimensions?.width ?? Math.max(...d.puzzle.map(r => r.length));
+  const styles = d.styles || {};
+  for (const i of idxs) {
+    const r = Math.floor(i / width), c = i % width;
+    const row = d.puzzle[r];
+    if (!row || row[c] === null || row[c] === undefined) continue;
+    const o = row[c] && typeof row[c] === 'object' && !Array.isArray(row[c]) ? row[c] : { cell: row[c] };
+    // a named style is copied into the cell, so other squares using it don't change
+    const style = typeof o.style === 'string' ? { ...(styles[o.style] || {}) } : { ...(o.style || {}) };
+    if (/circle/i.test(String(style.shapebg || ''))) delete style.shapebg; else style.shapebg = 'circle';
+    if (Object.keys(style).length) o.style = style; else delete o.style;
+    row[c] = Object.keys(o).length === 1 && 'cell' in o ? o.cell : o;
+  }
+  return JSON.stringify(d);
+}
+
 export function editGrid(raw, flips) {
   let t = String(raw).trim();
   if (!t.startsWith('{')) t = t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1);

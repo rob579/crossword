@@ -14,6 +14,7 @@ A personal crossword solver. Import `.ipuz` files, solve them in the browser, an
   - On touch devices an on-screen keyboard is shown, so the phone's own keyboard never covers the grid.
   - **Define** – once an answer is filled in, a *Define* button on the clue bar looks it up (Free Dictionary, then Wiktionary; phrases fall back to each word), with links to search further.
   - Check / Reveal (letter, word, puzzle) when the file includes a solution; Clear letter / word / puzzle.
+- **Circled squares** – circles in the file (`shapebg: "circle"`) are drawn in the grid. On puzzles with circles, the ◯ *Circles* button shows the circled letters together (row by row), can highlight them in the grid, and sends them to WordPlay to unscramble. Circles a scan missed can be added in *Edit puzzle* → *◯ Circle*.
 - **Share links** – *Share* (or ⋯ → *Share link…* on a phone) creates a link to the puzzle. Anyone who opens it gets a blank copy in their own library; your answers stay private. Creating a link needs sync turned on; opening one doesn't.
 - **WordPlay** (the anagrammer, *WP* button) – tap clue words to load all, odd or even letters, or type letters, then drag tiles around, tap two tiles to swap them, or hit *Shuffle*. It also shows the current answer's pattern (letters you've already got) for reference.
 

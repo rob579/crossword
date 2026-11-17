@@ -220,7 +220,7 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
 
   function updateFill() {
     const btn = root.querySelector('.ana-fill');
-    btn.hidden = !pattern;
+    btn.hidden = !pattern || !!pattern.noFill; // e.g. circled letters: nothing to fill in
     if (!pattern) { countEl.textContent = ''; return; }
     const empty = freeSlots().filter(s => !place[s]).length;
     const letters = answerLetters();
@@ -466,12 +466,12 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
     open() {
       const p = getPattern?.();
       pattern = p || null;
-      const key = p ? `${p.label}|${p.clue}` : null;
+      const key = p ? `${p.label}|${p.clue}|${p.start || ''}` : null;
       const prevKey = lastClueKey;
       if (key !== lastClueKey) {
         // a different clue: start fresh
         lastClueKey = key;
-        input.value = ''; place = []; spare = []; selected = null;
+        input.value = (p?.start || '').toUpperCase(); place = []; spare = []; selected = null;
         clueEl.hidden = !p?.clue;
         modesEl.hidden = !p?.clue;
         mode = 'all';

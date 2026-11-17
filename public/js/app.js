@@ -1,8 +1,8 @@
-import { parseIpuz, clueHtml, parseEnumeration, editGrid, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261112a';
-import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261112a';
-import { createAnagrammer } from './anagram.js?v=20261112a';
-import { renderProgressImage } from './progress-image.js?v=20261112a';
-import { lookup, answerPhrase, wiktionaryUrl, googleUrl } from './define.js?v=20261112a';
+import { parseIpuz, clueHtml, parseEnumeration, editGrid, editCircles, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261117a';
+import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261117a';
+import { createAnagrammer } from './anagram.js?v=20261117a';
+import { renderProgressImage } from './progress-image.js?v=20261117a';
+import { lookup, answerPhrase, wiktionaryUrl, googleUrl } from './define.js?v=20261117a';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -406,6 +406,8 @@ function openPuzzle(id) {
     sub.appendChild(c);
   }
   sub.hidden = !sub.textContent;
+  $('#grid').classList.remove('show-circles');
+  $('#puz-circles').hidden = !model.cells.some(c => c.circle && !c.block && !c.void);
   $('#puz-notes').hidden = !model.notes;
   $('#puz-notes').title = model.notes || '';
   for (const el of $$('[data-needs-solution]')) el.disabled = !model.hasSolution;
@@ -455,7 +457,7 @@ function buildGrid() {
     else {
       if (c.label) { const n = document.createElement('span'); n.className = 'num'; n.textContent = c.label; el.appendChild(n); }
       const l = document.createElement('span'); l.className = 'ltr'; el.appendChild(l);
-      if (c.circle) { const o = document.createElement('span'); o.className = 'circ'; el.appendChild(o); }
+      if (c.circle) { const o = document.createElement('span'); o.className = 'circ'; el.appendChild(o); el.classList.add('has-circ'); }
       if (c.color) el.style.setProperty('--cell-tint', c.color);
       if (c.bars) {
         const sh = [];
@@ -928,6 +930,19 @@ $('#grid').addEventListener('click', e => {
   const i = +el.dataset.i;
   if (cur.editing) {
     if (el.classList.contains('void')) return;
+    if ($('input[name="edit-mode"]:checked')?.value === 'circle') {
+      if (el.classList.contains('block') || cur.editing.has(i)) return; // circles go in white squares
+      const set = cur.editCircles;
+      if (set.has(i)) set.delete(i); else set.add(i);
+      const on = set.has(i);
+      el.classList.toggle('circ-flip', on);
+      if (!el.querySelector('.circ:not(.pending)')) {
+        if (on) { const o = document.createElement('span'); o.className = 'circ pending'; el.appendChild(o); }
+        else el.querySelector('.circ.pending')?.remove();
+      }
+      return;
+    }
+    if (cur.editCircles.has(i)) return; // undo the circle first
     if (cur.editing.has(i)) cur.editing.delete(i); else cur.editing.add(i);
     el.classList.toggle('flip', cur.editing.has(i));
     return;
@@ -1052,6 +1067,8 @@ $('#view-solver').addEventListener('click', e => {
     alert(model.notes);
   } else if (act === 'define') {
     openDefine();
+  } else if (act === 'circles') {
+    openCircles();
   }
 });
 
@@ -1200,6 +1217,9 @@ $('#btn-progress-close').addEventListener('click', () => $('#dlg-progress').clos
 function startEditGrid() {
   closeClueSheet();
   cur.editing = new Set();
+  cur.editCircles = new Set();
+  $('input[name="edit-mode"][value="block"]').checked = true;
+  $('#grid').classList.remove('show-circles');
   // details: title, setter, date (a date the picker can't show stays as it is unless changed)
   const m = cur.model;
   $('#edit-title').value = m.title === 'Untitled crossword' && !/"title"\s*:/.test(cur.raw) ? '' : m.title;
@@ -1217,6 +1237,9 @@ function stopEditGrid() {
   if (!cur) return;
   cur.editing = null;
   $$('#grid .cell.flip').forEach(el => el.classList.remove('flip'));
+  $$('#grid .cell.circ-flip').forEach(el => el.classList.remove('circ-flip'));
+  $$('#grid .circ.pending').forEach(el => el.remove());
+  cur.editCircles = null;
   $('#grid').classList.remove('editing');
   document.body.classList.remove('editing');
   $('#edit-bar').hidden = true;
@@ -1230,13 +1253,15 @@ function saveEditGrid() {
   if (now.author !== start.author.trim()) info.author = now.author;
   if (now.publisher !== start.publisher.trim()) info.publisher = now.publisher;
   if (now.date !== start.date) info.date = isoToPuzzleDate(now.date);
-  if (!flips.length && !Object.keys(info).length) { stopEditGrid(); return; }
+  const circs = [...cur.editCircles];
+  if (!flips.length && !circs.length && !Object.keys(info).length) { stopEditGrid(); return; }
   const id = cur.id;
   const rec = local.getPuzzle(id);
   let raw, model;
   try {
     raw = rec.raw;
     if (flips.length) raw = editGrid(raw, flips);
+    if (circs.length) raw = editCircles(raw, circs);
     if (Object.keys(info).length) raw = editInfo(raw, info);
     model = parseIpuz(raw);
   }
@@ -1252,7 +1277,8 @@ function saveEditGrid() {
   reopenPuzzle();
   // warn if the clue numbers no longer line up with the grid
   const unmatched = flips.length ? [...model.clues.across, ...model.clues.down].filter(c => !c.entryIds.length && !c.seeOf).length : 0;
-  const what = flips.length && Object.keys(info).length ? 'Puzzle updated' : flips.length ? 'Grid updated' : 'Details updated';
+  const kinds = [flips.length, circs.length, Object.keys(info).length].filter(Boolean).length;
+  const what = kinds > 1 ? 'Puzzle updated' : flips.length ? 'Grid updated' : circs.length ? 'Circles updated' : 'Details updated';
   toast(unmatched ? `${what}, but ${unmatched} clue${unmatched > 1 ? 's' : ''} no longer match the grid` : what, unmatched ? 5000 : 2600);
 }
 function reopenPuzzle() {
@@ -1283,9 +1309,43 @@ new ResizeObserver(sizeGrid).observe($('#board'));
 // ======================================================================
 // Anagrammer dialog
 // ======================================================================
+// Circled squares in reading order (row by row).
+const circledCells = () => (cur ? cur.model.cells.map((c, i) => (c.circle && !c.block && !c.void ? i : -1)).filter(i => i >= 0) : []);
+function openCircles() {
+  const cells = circledCells();
+  if (!cells.length) return;
+  const letters = cells.map(i => valueAt(i));
+  const got = letters.filter(Boolean).length;
+  const box = $('#circ-letters');
+  box.innerHTML = '';
+  for (const ch of letters) {
+    const s = document.createElement('span');
+    s.textContent = ch || '';
+    if (!ch) s.className = 'empty';
+    box.appendChild(s);
+  }
+  $('#circ-note').textContent = `${got} of ${cells.length} filled in · read row by row, left to right`;
+  $('#btn-circles-wp').disabled = !got;
+  $('#btn-circles-show').textContent = $('#grid').classList.contains('show-circles') ? 'Stop showing in grid' : 'Show in grid';
+  $('#dlg-circles').showModal();
+}
+$('#btn-circles-close').addEventListener('click', () => $('#dlg-circles').close());
+$('#btn-circles-show').addEventListener('click', () => {
+  $('#grid').classList.toggle('show-circles');
+  $('#dlg-circles').close();
+});
+$('#btn-circles-wp').addEventListener('click', () => { $('#dlg-circles').close(); openAnagram('circles'); });
+
+let anagramSource = 'clue';
 const anagram = createAnagrammer($('#anagram-body'), {
   getPattern() {
     if (!cur) return null;
+    if (anagramSource === 'circles') {
+      const cells = circledCells();
+      const n = cells.length;
+      return { label: 'Circled letters', clue: '', letters: Array(n).fill(''), fixed: Array(n).fill(false), breaks: [],
+        start: cells.map(i => valueAt(i)).join(''), noFill: true };
+    }
     const cl = activeClue();
     if (!cl) return null;
     const cells = activeWordCells();
@@ -1322,7 +1382,7 @@ const anagram = createAnagrammer($('#anagram-body'), {
     toast(`Filled in ${letters.map(c => c || '·').join('')}`);
   },
 });
-function openAnagram() { $('#dlg-anagram').showModal(); anagram.open(); }
+function openAnagram(source = 'clue') { anagramSource = source; $('#dlg-anagram').showModal(); anagram.open(); }
 $('#btn-anagram-close').addEventListener('click', () => $('#dlg-anagram').close());
 
 // ======================================================================

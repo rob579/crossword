@@ -296,6 +296,10 @@ summary.tool.more::after { content: none; }
   position: absolute; inset: 1px; border-radius: 50%;
   border: 1px solid currentColor; opacity: .55; pointer-events: none;
 }
+.grid.editing .cell.circ-flip .circ:not(.pending) { display: none; }
+.cell .circ.pending { border: 2px dashed var(--accent); opacity: 1; }
+.grid.show-circles .cell.has-circ { background: var(--word); }
+.grid.show-circles .cell.has-circ .circ { border-width: 2px; opacity: 1; }
 .cell.wrong .ltr { color: var(--wrong); }
 .cell.wrong::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
@@ -706,3 +710,14 @@ dialog.result-dlg { width: min(380px, calc(100% - 32px)); text-align: center; ma
 .define-src { font-size: 12px; margin-top: 6px; }
 .define-links { font-size: 13px; margin: 12px 0 0; line-height: 1.6; }
 .define-body a, .define-links a { color: inherit; }
+
+/* circled letters */
+.ana-fill[hidden] { display: none; }
+.edit-mode { flex: 0 1 260px; background: var(--surface); color: var(--ink); }
+.circ-letters { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
+.circ-letters span {
+  width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%;
+  border: 2px solid var(--line); font: 600 20px var(--serif); text-transform: uppercase;
+}
+.circ-letters span.empty { border-style: dashed; color: var(--muted); }
+.circ-note { margin: 0 0 4px; font-size: 14px; }

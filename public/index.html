@@ -13,8 +13,8 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <title>Crossword</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20261128a">
-  <script src="js/theme.js?v=20261128a"></script>
+  <link rel="stylesheet" href="styles.css?v=20261128b">
+  <script src="js/theme.js?v=20261128b"></script>
 </head>
 <body data-view="library">
   <header class="topbar">
@@ -308,6 +308,17 @@
         </div>
       </div>
 
+      <h3 class="settings-heading">Puzzle folder</h3>
+      <p class="muted">Keep your puzzles in a Google Drive folder shared as “Anyone with the link”, paste its link here, and press the button to add any new puzzles (.ipuz files) to your library. This is saved on this device only.</p>
+      <label for="drive-folder" class="field-label">Google Drive folder link</label>
+      <div class="field-row">
+        <input id="drive-folder" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="https://drive.google.com/drive/folders/…">
+      </div>
+      <p id="drive-msg" class="settings-msg" role="status"></p>
+      <div class="dlg-actions">
+        <button type="button" class="btn primary" id="btn-drive-get">Get latest puzzles</button>
+      </div>
+
       <h3 class="settings-heading">Sync across devices</h3>
       <p class="muted">Sign in with Google and your puzzles and progress follow you to every device you sign in on. Without signing in, everything is saved on this device only.</p>
       <p id="signin-msg" class="settings-msg" role="status"></p>
@@ -335,6 +346,6 @@
   <div class="drop-hint">Drop .ipuz files to import</div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="js/app.js?v=20261128a"></script>
+  <script type="module" src="js/app.js?v=20261128b"></script>
 </body>
 </html>

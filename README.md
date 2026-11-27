@@ -16,7 +16,8 @@ A personal crossword solver. Import `.ipuz` files, solve them in the browser, an
   - Check / Reveal (letter, word, puzzle) when the file includes a solution; Clear letter / word / puzzle.
 - **Circled squares** – circles in the file (`shapebg: "circle"`) are drawn in the grid. On puzzles with circles, the ◯ *Circles* button shows the circled letters together (row by row), can highlight them in the grid, and sends them to WordPlay to unscramble. Circles a scan missed can be added in *Edit puzzle* → *◯ Circle*.
 - **Share links** – *Share* (or ⋯ → *Share link…* on a phone) creates a link to the puzzle. Anyone who opens it gets a blank copy in their own library; your answers stay private. Creating a link needs sync turned on; opening one doesn't.
-- **WordPlay** (the anagrammer, *WP* button) – tap clue words to load all, odd or even letters, or type letters, then drag tiles around, tap two tiles to swap them, or hit *Shuffle*. It also shows the current answer's pattern (letters you've already got) for reference.
+- **Puzzle folder** – in Settings, paste the link to a Google Drive folder (shared as "Anyone with the link") and press *Get latest puzzles* to add any new `.ipuz` files. Works per device, without sync or sign-in. See *Drive folder setup*.
+- **WordPlay** (the anagrammer, *WP* button) – tap clue words to load all, odd or even letters, or type letters, then drag tiles around, tap two tiles to swap them, or hit *Shuffle*. It also shows the current answer's pattern (letters you've already got) for reference. On puzzles with answers, *Check letters* says yes or no to whether the letters you've loaded are an anagram of the answer (it never says how close you are).
 
 ## Branches
 
@@ -98,6 +99,20 @@ People sign in with Google instead of typing a sync key. Cloudflare Access prote
 4. Redeploy. `GET /api/health` should show `GOOGLE_SIGN_IN: configured`.
 
 To let someone in (or remove them), edit the email list in Zero Trust; nothing here needs to change.
+
+## Drive folder setup (Settings → Puzzle folder)
+
+Anyone can paste the link to their own Google Drive folder (shared as "Anyone with the link") into Settings and press **Get latest puzzles**. It runs in the browser only, so no sync or sign-in is needed. Only `.ipuz` files directly in the folder are fetched. Each device remembers which files it has already fetched, so a puzzle you delete doesn't come back. The folder link is saved on that device only.
+
+Google's Drive API needs an API key, even for public folders. One-off setup:
+
+1. In Google Cloud (the project used for sign-in is fine): **APIs & Services → Library → Google Drive API → Enable**.
+2. **Credentials → Create credentials → API key**. Then edit it:
+   - *Application restrictions:* Websites. Add `https://crossword.robsofficetips.com/*`, `https://crossword-4xs.pages.dev/*` and `https://*.crossword-4xs.pages.dev/*` (and `http://localhost:8788/*` for local development).
+   - *API restrictions:* Restrict key → Google Drive API only.
+3. Paste the key into `DRIVE_API_KEY` at the top of `public/js/drive.js`, commit and push.
+
+The key is visible to anyone who views the page source, which is why it is restricted as above. If it is ever misused, delete it in Google Cloud and create a new one.
 
 ## Local development
 

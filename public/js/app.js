@@ -1,8 +1,9 @@
-import { parseIpuz, clueHtml, parseEnumeration, editGrid, editCircles, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261128a';
-import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261128a';
-import { createAnagrammer } from './anagram.js?v=20261128a';
-import { renderProgressImage } from './progress-image.js?v=20261128a';
-import { lookup, answerPhrase, wiktionaryUrl, googleUrl } from './define.js?v=20261128a';
+import { parseIpuz, clueHtml, parseEnumeration, editGrid, editCircles, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261128b';
+import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261128b';
+import { createAnagrammer } from './anagram.js?v=20261128b';
+import { renderProgressImage } from './progress-image.js?v=20261128b';
+import { lookup, answerPhrase, wiktionaryUrl, googleUrl } from './define.js?v=20261128b';
+import { driveConfigured, driveFolder, driveLast, driveSeen, folderIdFrom, listFolder, fetchFileText } from './drive.js?v=20261128b';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -1568,7 +1569,62 @@ for (const r of $$('input[name="kbpos"]')) r.addEventListener('change', () => {
   applyKbPos();
 });
 
+// ---------- Puzzle folder (Google Drive) ----------
+function driveStatus() {
+  const msg = $('#drive-msg');
+  $('#btn-drive-get').disabled = !driveConfigured();
+  if (!driveConfigured()) { msg.textContent = 'Not set up yet: this site needs a Google API key (see the README).'; return; }
+  const last = driveLast.get();
+  msg.textContent = last ? `Last checked ${new Date(last).toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}.` : '';
+}
+$('#btn-drive-get').addEventListener('click', async () => {
+  const btn = $('#btn-drive-get'), msg = $('#drive-msg');
+  const id = folderIdFrom($('#drive-folder').value);
+  if (!id) { msg.textContent = 'Paste the folder\'s share link first.'; return; }
+  driveFolder.set($('#drive-folder').value);
+  btn.disabled = true;
+  msg.textContent = 'Checking the folder…';
+  try {
+    const all = await listFolder(id);
+    if (!all.length) { msg.textContent = 'No .ipuz files found in that folder.'; return; }
+    const fresh = all.filter(f => !driveSeen.has(f.id));
+    driveLast.set();
+    if (!fresh.length) { msg.textContent = `No new puzzles (${all.length} already fetched).`; return; }
+    if (!driveSeen.size() && fresh.length > 1 && !confirm(`Found ${fresh.length} puzzles in that folder.\n\nAdd them all to your library?`)) {
+      msg.textContent = 'Nothing added.'; return;
+    }
+    let added = 0, updated = 0, had = 0, skipped = 0;
+    const unreadable = [], missed = [];
+    for (const [k, f] of fresh.entries()) {
+      msg.textContent = `Fetching ${k + 1} of ${fresh.length}…`;
+      let raw;
+      try { raw = await fetchFileText(f.id); } catch { missed.push(f.name); continue; } // try again next time
+      try {
+        const r = await importRaw(raw);
+        if (r.declined) skipped++; else if (r.updated) updated++; else if (r.isNew) added++; else had++;
+      } catch { unreadable.push(f.name); }
+      driveSeen.add(f.id); // not asked about again, even if you later delete it
+    }
+    renderLibrary();
+    const bits = [];
+    if (added) bits.push(`${added} new puzzle${added > 1 ? 's' : ''} added`);
+    if (updated) bits.push(`answers added to ${updated}`);
+    if (had) bits.push(`${had} already in your library`);
+    if (skipped) bits.push(`${skipped} skipped`);
+    if (unreadable.length) bits.push(`couldn't read: ${unreadable.join(', ')}`);
+    if (missed.length) bits.push(`couldn't download: ${missed.join(', ')} (press again to retry)`);
+    msg.textContent = bits.join('; ') + '.';
+    if (added || updated) toast(`Fetched ${added + updated} puzzle${added + updated > 1 ? 's' : ''} from Drive`);
+  } catch (e) {
+    msg.textContent = e.message;
+  } finally {
+    btn.disabled = !driveConfigured();
+  }
+});
+
 function openSettings() {
+  $('#drive-folder').value = driveFolder.get();
+  driveStatus();
   syncAppearanceUI();
   for (const r of $$('input[name="kbpos"]')) r.checked = r.value === kbPos();
   $('#token-input').value = local.token();

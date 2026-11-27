@@ -1,9 +1,9 @@
-import { parseIpuz, clueHtml, parseEnumeration, editGrid, editCircles, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261128b';
-import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261128b';
-import { createAnagrammer } from './anagram.js?v=20261128b';
-import { renderProgressImage } from './progress-image.js?v=20261128b';
-import { lookup, answerPhrase, wiktionaryUrl, googleUrl } from './define.js?v=20261128b';
-import { driveConfigured, driveFolder, driveLast, driveSeen, folderIdFrom, listFolder, fetchFileText } from './drive.js?v=20261128b';
+import { parseIpuz, clueHtml, parseEnumeration, editGrid, editCircles, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261128c';
+import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261128c';
+import { createAnagrammer } from './anagram.js?v=20261128c';
+import { renderProgressImage } from './progress-image.js?v=20261128c';
+import { lookup, answerPhrase, wiktionaryUrl, googleUrl } from './define.js?v=20261128c';
+import { driveConfigured, driveFolder, driveLast, driveSeen, folderIdFrom, listFolder, fetchFileText } from './drive.js?v=20261128c';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];

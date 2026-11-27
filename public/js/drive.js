@@ -70,7 +70,7 @@ export async function listFolder(folderId) {
     if (pageToken) p.set('pageToken', pageToken);
     const data = await (await get(`${API}?${p}`)).json();
     for (const f of data.files || []) {
-      if (!/\.ipuz$/i.test(f.name || '')) continue;
+      if (!/\.ipuz(\.json)?$/i.test(f.name || '')) continue;
       if (f.size && +f.size > MAX_BYTES) continue;
       out.push({ id: f.id, name: f.name });
     }

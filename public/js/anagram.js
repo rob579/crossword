@@ -30,14 +30,18 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
       <button type="button" class="btn" data-act="shuffle">⤮ Shuffle</button>
       <button type="button" class="btn" data-act="reset">↺ Reset</button>
       <button type="button" class="btn ghost" data-act="clear">Clear</button>
+      <button type="button" class="btn ana-check-btn" data-act="check" hidden>✓ Check letters</button>
       <button type="button" class="btn primary ana-fill" data-act="fill" disabled>Fill in answer</button>
     </div>
+    <p class="ana-check" role="status" aria-live="polite" hidden></p>
     <p class="ana-hint">Drag a tile to any square (leave gaps for letters you don't have yet), or tap two to swap. Press and hold a letter to lock it in place; hold again to unlock.<span class="ana-lock-hint"> Blue 🔒 letters come from finished crossing answers; green ✔ ones from answers you've confirmed.</span></p>`;
 
   const input = root.querySelector('.ana-input');
   const board = root.querySelector('.ana-board');
   const boardLabel = root.querySelector('.ana-board-label');
   const countEl = root.querySelector('.ana-count');
+  const checkBtn = root.querySelector('.ana-check-btn');
+  const checkMsg = root.querySelector('.ana-check');
   const lockHint = root.querySelector('.ana-lock-hint');
   const clueEl = root.querySelector('.ana-clue');
   const clueTextEl = root.querySelector('.ana-clue-text');
@@ -79,10 +83,29 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
     spare = spare.filter(Boolean);
   }
 
+  // ---------- "are these the right letters?" ----------
+  // Compares everything in play (tiles on the board, spare tiles and locked squares) with the
+  // answer's letters, in any order. Only says yes or no, never how close it is.
+  function clearCheck() { checkMsg.hidden = true; checkMsg.textContent = ''; checkMsg.className = 'ana-check'; }
+  function checkLetters() {
+    if (!pattern?.answer) return;
+    const mine = [...allTiles().map(t => t.ch), ...locked.values()].join('');
+    if (!mine) { showCheck('Add some letters first.', ''); return; }
+    const sorted = x => lettersOf(x).sort().join('');
+    if (sorted(mine) === sorted(pattern.answer)) showCheck('Yes! Those letters make the answer.', 'yes');
+    else showCheck('No, not quite: those letters don\'t make the answer.', 'no');
+  }
+  function showCheck(text, kind) {
+    checkMsg.textContent = text;
+    checkMsg.className = 'ana-check' + (kind ? ' ' + kind : '');
+    checkMsg.hidden = false;
+  }
+
   // ---------- letters in play ----------
   // Tiles = typed letters minus any locked on the board. Existing tiles keep their
   // squares; new letters go into the first empty squares, then the spare row.
   function setFromInput({ preferSlot = null } = {}) {
+    clearCheck();
     const need = lettersOf(input.value);
     for (const ch of locked.values()) {
       const at = need.indexOf(ch);
@@ -221,6 +244,8 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
   function updateFill() {
     const btn = root.querySelector('.ana-fill');
     btn.hidden = !pattern || !!pattern.noFill; // e.g. circled letters: nothing to fill in
+    checkBtn.hidden = !pattern?.answer; // only when the puzzle has answers
+    if (checkBtn.hidden) clearCheck();
     if (!pattern) { countEl.textContent = ''; return; }
     const empty = freeSlots().filter(s => !place[s]).length;
     const letters = answerLetters();
@@ -291,6 +316,7 @@ export function createAnagrammer(root, { getPattern, onFill } = {}) {
   root.addEventListener('click', e => {
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'fill') { const l = answerLetters(); if (l) onFill?.(l); }
+    if (act === 'check') checkLetters();
     if (act === 'shuffle') shuffle();
     if (act === 'reset') resetOrder();
     if (act === 'clear') {

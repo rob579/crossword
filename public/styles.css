@@ -416,6 +416,9 @@ dialog.sheet::backdrop { background: rgba(0,0,0,.35); }
 @keyframes pop { 0% { transform: scale(.8); opacity: .4; } 100% { transform: none; opacity: 1; } }
 .ana-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .ana-hint { margin: 0; font-size: 13px; color: var(--muted); }
+.ana-check { margin: 0; font-size: 14px; font-weight: 600; }
+.ana-check.yes { color: var(--solved); }
+.ana-check.no { color: var(--muted); }
 
 /* ---------- toast ---------- */
 .toast {

@@ -1,8 +1,8 @@
-import { parseIpuz, clueHtml, parseEnumeration, editGrid, editCircles, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261117a';
-import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261117a';
-import { createAnagrammer } from './anagram.js?v=20261117a';
-import { renderProgressImage } from './progress-image.js?v=20261117a';
-import { lookup, answerPhrase, wiktionaryUrl, googleUrl } from './define.js?v=20261117a';
+import { parseIpuz, clueHtml, parseEnumeration, editGrid, editCircles, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261128a';
+import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261128a';
+import { createAnagrammer } from './anagram.js?v=20261128a';
+import { renderProgressImage } from './progress-image.js?v=20261128a';
+import { lookup, answerPhrase, wiktionaryUrl, googleUrl } from './define.js?v=20261128a';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -1368,7 +1368,10 @@ const anagram = createAnagrammer($('#anagram-body'), {
     });
     const en = parseEnumeration(cl);
     const breaks = en && en.total === cells.length ? en.breaks : [];
-    return { label: clueLong(cl), clue: clue + enumTxt, letters: cells.map(i => valueAt(i)), fixed, breaks };
+    // the answer's letters, for WordPlay's "Check letters" (only when every square has one)
+    const sols = cells.map(i => model.cells[i].solution);
+    const answer = model.hasSolution && sols.every(Boolean) ? sols.join('') : null;
+    return { label: clueLong(cl), clue: clue + enumTxt, letters: cells.map(i => valueAt(i)), fixed, breaks, answer };
   },
   onFill(letters) {
     if (!cur) return;

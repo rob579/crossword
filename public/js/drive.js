@@ -6,7 +6,7 @@
 // anyone who views the page, so restrict it in Google Cloud (see README: Drive folder setup)
 // to the Drive API only, and to this site's addresses only.
 
-export const DRIVE_API_KEY = '';
+export const DRIVE_API_KEY = 'AIzaSyD1FtpuQwBKrwVWluIMPQ610_rA8xAJFEI';
 
 const API = 'https://www.googleapis.com/drive/v3/files';
 const MAX_BYTES = 2 * 1024 * 1024; // a crossword is a few KB; skip anything much bigger

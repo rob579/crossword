@@ -1,9 +1,9 @@
-import { parseIpuz, clueHtml, parseEnumeration, editGrid, editCircles, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261128c';
-import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261128c';
-import { createAnagrammer } from './anagram.js?v=20261128c';
-import { renderProgressImage } from './progress-image.js?v=20261128c';
-import { lookup, answerPhrase, wiktionaryUrl, googleUrl } from './define.js?v=20261128c';
-import { driveConfigured, driveFolder, driveLast, driveSeen, folderIdFrom, listFolder, fetchFileText } from './drive.js?v=20261128c';
+import { parseIpuz, clueHtml, parseEnumeration, editGrid, editCircles, editInfo, formatPuzzleDate, puzzleDateToIso, isoToPuzzleDate } from './ipuz.js?v=20261128d';
+import { createShare, fetchShare, local, puzzleId, syncAll, pullProgress, pushProgress, deleteRemote, uploadPuzzle, onSyncStatus, testToken, checkSession, signOutRemote, filledCount } from './store.js?v=20261128d';
+import { createAnagrammer } from './anagram.js?v=20261128d';
+import { renderProgressImage } from './progress-image.js?v=20261128d';
+import { lookup, answerPhrase, wiktionaryUrl, googleUrl } from './define.js?v=20261128d';
+import { driveConfigured, driveFolder, driveLast, driveSeen, folderIdFrom, listFolder, fetchFileText } from './drive.js?v=20261128d';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -41,13 +41,13 @@ function libCard(p) {
         <span class="lib-title"></span>
         <span class="lib-meta"></span>
         <span class="lib-progress"><span style="width:${p.pct}%"></span></span>
-        <span class="lib-pct">${meta.solved ? 'Solved ✓' : p.complete ? (puzzleInfo(p).hasSolution ? 'Not quite right' : 'Complete') : p.pct ? p.pct + '% filled' : 'Not started'}</span>
+        <span class="lib-pct">${p.solved ? 'Solved ✓' : p.complete ? (puzzleInfo(p).hasSolution ? 'Not quite right' : 'Complete') : p.pct ? p.pct + '% filled' : 'Not started'}</span>
       </button>
       <button class="lib-more icon-btn" data-more="${p.id}" aria-label="More options" title="Share or delete">⋯</button>`;
   $('.lib-title', card).textContent = meta.title || 'Untitled';
   $('.lib-meta', card).textContent = libraryLine(p);
   // full grid: green = right, purple = no answers to check against, red = doesn't match the answers
-  if (meta.solved) card.classList.add('solved');
+  if (p.solved) card.classList.add('solved');
   else if (p.complete) card.classList.add(puzzleInfo(p).hasSolution ? 'notquite' : 'complete');
   return card;
 }
@@ -87,6 +87,7 @@ function renderLibrary() {
     const filled = filledCount(local.getProgress(id));
     p.pct = Math.min(100, Math.round((filled / total) * 100));
     p.complete = filled >= total;               // every square filled
+    p.solved = isSolved(p);                     // ...and matching the answers
     p.iso = puzzleDateToIso(puzzleInfo(p).date); // '' when the puzzle has no (readable) date
     return p;
   });
@@ -94,7 +95,7 @@ function renderLibrary() {
   $('#lib-tools').hidden = all.length < 2;
   list.innerHTML = '';
   // Completed = solved, or full with no answers to check, or full-but-wrong that you moved there yourself
-  const done = all.filter(p => p.meta?.solved || (p.complete && (!puzzleInfo(p).hasSolution || movedToCompleted(p.id))));
+  const done = all.filter(p => p.solved || (p.complete && (!puzzleInfo(p).hasSolution || movedToCompleted(p.id))));
   addCards(list, all.filter(p => !done.includes(p)), sort);
   if (done.length) {
     const sec = document.createElement('details');
@@ -118,10 +119,20 @@ function puzzleInfo(rec) {
   const hit = infoCache.get(rec.id);
   if (hit && hit.raw === rec.raw) return hit.info;
   let info;
-  try { const m = parseIpuz(rec.raw); info = { author: m.author, publisher: m.publisher, date: m.date, hasSolution: m.hasSolution }; }
+  try { const m = parseIpuz(rec.raw); info = { author: m.author, publisher: m.publisher, date: m.date, hasSolution: m.hasSolution,
+      sol: m.hasSolution ? m.cells.map(c => (c.block || c.void ? '' : c.solution || '')) : null }; }
   catch { info = { author: rec.meta?.author || '', publisher: rec.meta?.publisher || '', date: rec.meta?.date || '' }; }
   infoCache.set(rec.id, { raw: rec.raw, info });
   return info;
+}
+// Solved = every square filled and matching the answers. Worked out from the saved letters each time
+// rather than remembered, so a puzzle finished earlier turns green as soon as its answers arrive
+// (e.g. fetched from a folder or synced), without having to open it first.
+function isSolved(p) {
+  const sol = puzzleInfo(p).sol;
+  if (!sol || !p.complete) return false;
+  const cells = local.getProgress(p.id).cells || {};
+  return sol.every((s, i) => !s || (cells[i]?.v || '') === s);
 }
 // "DS (Herald Sun) · Fri, 23 Oct 2026 · 15×15"
 function libraryLine(rec) {
@@ -170,8 +181,9 @@ function setMovedToCompleted(id, on) {
 // a full grid that doesn't match its answers ("Not quite right")
 function notQuiteRight(id) {
   const rec = local.getPuzzle(id);
-  if (!rec || rec.meta?.solved || !puzzleInfo({ id, ...rec }).hasSolution) return false;
-  return filledCount(local.getProgress(id)) >= (rec.meta?.cells || Infinity);
+  if (!rec || !puzzleInfo({ id, ...rec }).hasSolution) return false;
+  const p = { id, ...rec, complete: filledCount(local.getProgress(id)) >= (rec.meta?.cells || Infinity) };
+  return p.complete && !isSolved(p);
 }
 function openLibMenu(id, x, y) {
   const m = $('#lib-menu');
